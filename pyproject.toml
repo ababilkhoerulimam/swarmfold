@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "swarmfold"
+version = "0.1.0"
+description = "Evidence-first multi-agent experimentation for data science competitions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "joblib>=1.4,<2",
+    "fastapi>=0.115,<1",
+    "httpx>=0.28,<1",
+    "langchain>=1.2,<2",
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-sqlite>=3.0,<4",
+    "mlflow>=3.5,<4",
+    "pydantic>=2.10,<3",
+    "psycopg[binary]>=3.2,<4",
+    "psutil>=6,<8",
+    "pyarrow>=18,<26",
+    "python-dotenv>=1.0,<2",
+    "python-multipart>=0.0.20,<1",
+    "scikit-learn>=1.6,<2",
+    "sqlalchemy>=2.0,<3",
+    "typer>=0.15,<1",
+    "uvicorn>=0.34,<1",
+]
+
+[project.optional-dependencies]
+openai = ["langchain-openai>=1.1,<2"]
+anthropic = ["langchain-anthropic>=1.1,<2"]
+gemini = ["langchain-google-genai>=4,<5"]
+dev = [
+    "pytest>=8.3,<10",
+    "ruff>=0.11,<1",
+]
+
+[project.scripts]
+swarmfold = "swarmfold.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swarmfold"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.swarmfold",
+    "/dist",
+    "/graphify-out",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -1,0 +1,117 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: swarmfold
+      POSTGRES_USER: swarmfold
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swarmfold -d swarmfold"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  coordinator:
+    build: .
+    environment:
+      SWARMFOLD_DATABASE_URL: postgresql+psycopg://swarmfold:${POSTGRES_PASSWORD}@postgres/swarmfold
+      SWARMFOLD_ARTIFACT_ROOT: /shared/coordinator
+      SWARMFOLD_COORDINATOR_TOKEN: ${SWARMFOLD_COORDINATOR_TOKEN:?set coordinator token}
+      SWARMFOLD_AUDITOR_TOKEN: ${SWARMFOLD_AUDITOR_TOKEN:?set auditor token}
+      SWARMFOLD_POD_TOKENS: ${SWARMFOLD_POD_TOKENS:?set pod token JSON}
+      SWARMFOLD_PLANNER: ${SWARMFOLD_PLANNER:-mock}
+      SWARMFOLD_MODEL: ${SWARMFOLD_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${SWARMFOLD_DOCKER_OPENAI_BASE_URL:-http://host.docker.internal:20129/v1}
+      SWARMFOLD_UI_TRACKING_URI: http://mlflow:5000
+      SWARMFOLD_LITERATURE_RESEARCH: ${SWARMFOLD_LITERATURE_RESEARCH:-true}
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
+      CROSSREF_MAILTO: ${CROSSREF_MAILTO:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - shared-artifacts:/shared
+    restart: unless-stopped
+
+  mlflow:
+    build: .
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - postgresql+psycopg://swarmfold:${POSTGRES_PASSWORD}@postgres/swarmfold
+      - --artifacts-destination
+      - /shared/mlflow
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --allowed-hosts
+      - mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    volumes:
+      - shared-artifacts:/shared
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  postgres-backup:
+    image: postgres:17-alpine
+    profiles: ["backup"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    command:
+      - sh
+      - -c
+      - >-
+        stamp=$$(date -u +%Y%m%dT%H%M%SZ) &&
+        pg_dump -h postgres -U swarmfold -d swarmfold -Fc
+        -f /backups/swarmfold-$${stamp}.dump &&
+        find /backups -maxdepth 1 -type f -name 'swarmfold-*.dump'
+        -mtime +${SWARMFOLD_BACKUP_RETENTION_DAYS:-30} -delete
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+
+  postgres-restore-drill:
+    image: postgres:17-alpine
+    profiles: ["drill"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    command:
+      - sh
+      - -c
+      - >-
+        dump=$$(find /backups -maxdepth 1 -type f -name 'swarmfold-*.dump'
+        -print | sort | tail -1) &&
+        test -n "$${dump}" && pg_restore --list "$${dump}" >/dev/null
+    volumes:
+      - ./backups:/backups:ro
+
+volumes:
+  postgres-data:
+  shared-artifacts:

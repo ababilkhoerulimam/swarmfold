@@ -1,0 +1,44 @@
+[
+  {
+    "lane_id": "ai-a",
+    "objective": "Produce a stable local validation champion.",
+    "model_focus": "stable baselines",
+    "risk_level": "low",
+    "expected_diversity": "Low-variance predictions from conservative models."
+  },
+  {
+    "lane_id": "ai-b",
+    "objective": "Explore alternative nonlinear model mechanisms.",
+    "model_focus": "tree models",
+    "risk_level": "medium",
+    "expected_diversity": "Nonlinear partitions unlike the linear baseline."
+  },
+  {
+    "lane_id": "ai-c",
+    "objective": "Challenge the leaders with diverse ensemble candidates.",
+    "model_focus": "ensembles",
+    "risk_level": "high",
+    "expected_diversity": "Blended probabilities across distinct model families."
+  },
+  {
+    "lane_id": "human-1",
+    "objective": "Apply domain interpretation and manually reviewed data decisions.",
+    "model_focus": "domain-informed features",
+    "risk_level": "medium",
+    "expected_diversity": "Human domain assumptions distinct from autonomous pod search."
+  },
+  {
+    "lane_id": "human-2",
+    "objective": "Develop an independent manual feature and model candidate.",
+    "model_focus": "independent manual model",
+    "risk_level": "medium",
+    "expected_diversity": "Separately designed features and validation interpretation."
+  },
+  {
+    "lane_id": "human-3",
+    "objective": "Challenge leading candidates through ablation or manual blending.",
+    "model_focus": "ablation and blending",
+    "risk_level": "high",
+    "expected_diversity": "Residual-focused challenger or deliberately different blend."
+  }
+]

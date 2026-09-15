@@ -1,0 +1,9 @@
+.env
+.git
+.pytest_cache
+.ruff_cache
+.swarmfold
+.venv
+dist
+graphify-out
+__pycache__

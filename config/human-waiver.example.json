@@ -1,0 +1,11 @@
+{
+  "packet_type": "waiver",
+  "iteration_id": "iteration-1",
+  "lane_id": "human-3",
+  "run_id": "human-3-waiver-1",
+  "reason": "Replace this text with the human-approved reason for waiving the lane.",
+  "approver": "replace-with-approver",
+  "incomplete_work": [],
+  "preserved_artifacts": false,
+  "decision": "Replace this text with the limitations and recommended next action."
+}

@@ -1,0 +1,11 @@
+{
+  "packet_type": "candidate",
+  "iteration_id": "iteration-1",
+  "lane_id": "human-1",
+  "candidate_id": "human-1-candidate-1",
+  "run_id": "human-1-run-1",
+  "metrics": {
+    "accuracy": 0.0
+  },
+  "decision": "Replace this text with the evidence, limitations, and recommended next action."
+}

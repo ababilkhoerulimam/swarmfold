@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SwarmFold Control Room</title>
+  <style>
+    :root {
+      --ink: #152238;
+      --ink-soft: #40506a;
+      --mist: #edf3f6;
+      --paper: #fbfcfd;
+      --cyan: #37b7c3;
+      --cyan-dark: #197985;
+      --amber: #f2b84b;
+      --red: #d95d5d;
+      --line: #cbd8de;
+      --white: #ffffff;
+      --shadow: 0 18px 50px rgba(21, 34, 56, .09);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 82% 7%, rgba(55, 183, 195, .14), transparent 25rem),
+        var(--mist);
+      font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(55, 183, 195, .35);
+      outline-offset: 2px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 22px;
+      color: var(--paper);
+      background: var(--ink);
+      overflow: hidden;
+    }
+
+    .sidebar::after {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      left: -110px;
+      bottom: -120px;
+      border: 1px solid rgba(55, 183, 195, .32);
+      border-radius: 50%;
+      box-shadow: 0 0 0 38px rgba(55, 183, 195, .05), 0 0 0 76px rgba(55, 183, 195, .03);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 52px;
+    }
+
+    .mark {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .mark span {
+      position: absolute;
+      left: 8px;
+      width: 22px;
+      height: 2px;
+      background: var(--cyan);
+      transform-origin: right;
+    }
+
+    .mark span:nth-child(1) { top: 10px; transform: rotate(16deg); }
+    .mark span:nth-child(2) { top: 18px; }
+    .mark span:nth-child(3) { top: 26px; transform: rotate(-16deg); }
+
+    .brand strong {
+      display: block;
+      font-family: "Bahnschrift", "Arial Narrow", sans-serif;
+      font-size: 20px;
+      letter-spacing: .02em;
+    }
+
+    .brand small { color: #aebdcc; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; }
+
+    .nav-label, .eyebrow {
+      font-family: "Cascadia Mono", "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .nav-label { color: #7f91a5; margin: 0 12px 12px; }
+
+    nav { display: grid; gap: 7px; }
+
+    nav button {
+      width: 100%;
+      padding: 11px 13px;
+      color: #b9c6d2;
+      background: transparent;
+      border: 0;
+      border-radius: 10px;
+      text-align: left;
+    }
+
+    nav button.active {
+      color: var(--white);
+      background: rgba(255,255,255,.09);
+    }
+
+    nav button.active::before {
+      content: "";
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-right: 10px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 0 4px rgba(55,183,195,.14);
+    }
+
+    .side-status {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 28px;
+      z-index: 1;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      background: rgba(255,255,255,.045);
+    }
+
+    .side-status p { margin: 0 0 5px; font-size: 12px; color: #91a4b6; }
+    .side-status strong { display: block; font-family: "Cascadia Mono", monospace; font-size: 12px; }
+
+    main { padding: 32px clamp(22px, 4vw, 60px) 60px; overflow: hidden; }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .topbar h1 {
+      margin: 2px 0 0;
+      font-family: "Bahnschrift", "Arial Narrow", sans-serif;
+      font-size: clamp(29px, 4vw, 46px);
+      line-height: 1;
+      letter-spacing: -.035em;
+    }
+
+    .eyebrow { color: var(--cyan-dark); }
+
+    .connection {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.7);
+      font-family: "Cascadia Mono", monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .connection-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+    .connection.online .connection-dot { background: var(--cyan); box-shadow: 0 0 0 4px rgba(55,183,195,.16); }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .panel {
+      background: rgba(251,252,253,.9);
+      border: 1px solid rgba(203,216,222,.9);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .run-form { padding: 26px; }
+    .panel-title { margin: 6px 0 5px; font: 700 23px/1.2 "Bahnschrift", sans-serif; letter-spacing: -.02em; }
+    .panel-copy { margin: 0 0 24px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+
+    .field { display: grid; gap: 7px; margin-bottom: 15px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 43px;
+      padding: 10px 12px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    input[type="file"] { padding: 8px; font-size: 12px; }
+    textarea { min-height: 240px; resize: vertical; font: 12px/1.5 "Cascadia Mono", monospace; }
+
+    .primary, .secondary {
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 11px;
+      border: 1px solid transparent;
+      font-weight: 750;
+    }
+
+    .primary { width: 100%; color: var(--white); background: var(--ink); }
+    .primary:hover { background: #233653; }
+    .primary:disabled { cursor: wait; opacity: .55; }
+    .secondary { color: var(--ink); border-color: var(--line); background: var(--white); }
+    .secondary:hover { border-color: var(--cyan); }
+
+    .rail-panel { position: relative; min-height: 520px; padding: 26px; overflow: hidden; }
+    .rail-panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(21,34,56,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(21,34,56,.035) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(to bottom, black, transparent 86%);
+      pointer-events: none;
+    }
+
+    .rail-head { position: relative; display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .status-pill { padding: 6px 10px; border-radius: 999px; background: #e5ecef; font: 700 11px "Cascadia Mono", monospace; }
+    .status-pill.running { color: #0d6972; background: #d8f1f3; }
+    .status-pill.accepted { color: #0d6972; background: #d8f1f3; }
+    .status-pill.rejected { color: #815312; background: #fff0ce; }
+    .status-pill.failed { color: #942f2f; background: #f9dddd; }
+
+    .rails { position: relative; display: grid; grid-template-columns: 110px minmax(80px,1fr) 118px; gap: 0; margin-top: 38px; }
+    .lane-list, .gate-list { display: grid; grid-template-rows: repeat(6, 46px); gap: 8px; }
+
+    .lane {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font: 700 12px "Cascadia Mono", monospace;
+    }
+
+    .lane-dot { width: 11px; height: 11px; border: 2px solid #9eb0bd; border-radius: 50%; background: var(--paper); }
+    .lane.active .lane-dot { border-color: var(--cyan-dark); background: var(--cyan); box-shadow: 0 0 0 5px rgba(55,183,195,.15); }
+    .lane.done .lane-dot { border-color: var(--cyan-dark); background: var(--cyan-dark); }
+
+    .tracks { display: grid; grid-template-rows: repeat(6, 46px); gap: 8px; align-items: center; }
+    .track { height: 1px; background: var(--line); position: relative; }
+    .track::after { content: ""; position: absolute; right: -1px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+    .track.active { height: 2px; background: linear-gradient(90deg, var(--cyan-dark), var(--cyan)); }
+    .track.active::before { content: ""; position: absolute; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: travel 2s linear infinite; }
+    .track.active::after { background: var(--cyan); }
+
+    @keyframes travel { from { left: 0; } to { left: calc(100% - 6px); } }
+
+    .gate-list { position: relative; }
+    .gate-list::before { content: ""; position: absolute; left: 0; top: 22px; bottom: 22px; width: 1px; background: var(--line); }
+    .gate {
+      display: flex;
+      align-items: center;
+      padding-left: 18px;
+      color: #718397;
+      font: 700 10px "Cascadia Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .gate.main { color: var(--ink); }
+
+    .flow {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(64px, 1fr));
+      gap: 8px;
+      margin-top: 28px;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 10px 8px;
+      border-top: 2px solid var(--line);
+      color: #7b8b9c;
+      font: 700 10px/1.35 "Cascadia Mono", monospace;
+      text-transform: uppercase;
+    }
+    .flow-step.active, .flow-step.done { border-color: var(--cyan); color: var(--ink); }
+
+    .results { margin-top: 24px; padding: 26px; }
+    .results-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 18px; }
+    .artifact-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 10px 12px; color: #718397; font: 700 10px "Cascadia Mono", monospace; text-align: left; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid var(--line); }
+    td { padding: 13px 12px; border-bottom: 1px solid #e4ebee; }
+    td.metric { font-family: "Cascadia Mono", monospace; font-weight: 700; }
+    .empty { padding: 28px 12px; color: #718397; text-align: center; }
+    .hidden { display: none !important; }
+    .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+    .profile-fact { padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: #f4f7f8; }
+    .profile-fact small { display: block; color: #718397; margin-bottom: 5px; }
+    .profile-fact strong { overflow-wrap: anywhere; }
+    .question-list { display: grid; gap: 10px; margin: 14px 0 20px; }
+    .issue-card { padding: 14px; border: 1px solid #e4c98f; border-radius: 12px; background: #fff8e8; }
+    .issue-card.resolved { border-color: #9bcfd3; background: #eaf7f7; }
+    .issue-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+    .issue-kind { color: #815312; font: 700 10px "Cascadia Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .issue-state { color: #718397; font: 700 10px "Cascadia Mono", monospace; text-transform: uppercase; }
+    .issue-card p { margin: 0 0 10px; color: var(--ink); font-size: 13px; line-height: 1.5; }
+    .issue-card textarea { min-height: 78px; margin-bottom: 9px; font: 13px/1.45 "Aptos", "Segoe UI", sans-serif; }
+    .issue-card button { min-height: 36px; padding: 7px 11px; }
+    .issue-empty { padding: 13px; color: #185c64; border: 1px solid #abd5d8; border-radius: 11px; background: #eaf7f7; }
+
+    .bottom-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; margin-top: 24px; }
+    .recent, .settings { padding: 24px; }
+    .run-list { display: grid; gap: 9px; margin-top: 16px; }
+    .run-item { display: flex; justify-content: space-between; align-items: center; gap: 15px; width: 100%; padding: 12px 13px; color: var(--ink); background: #f4f7f8; border: 1px solid transparent; border-radius: 11px; text-align: left; }
+    .run-item:hover { border-color: var(--cyan); }
+    .run-item small { display: block; margin-top: 3px; color: #718397; }
+    .mono { font-family: "Cascadia Mono", monospace; }
+
+    .settings dl { margin: 16px 0; }
+    .settings dl div { display: grid; grid-template-columns: 80px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e1e9ec; font-size: 12px; }
+    .settings dt { color: #718397; }
+    .settings dd { margin: 0; font-family: "Cascadia Mono", monospace; overflow-wrap: anywhere; }
+
+    .notice { display: none; margin-top: 14px; padding: 11px 13px; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+    .notice.show { display: block; }
+    .notice.error { color: #842d2d; background: #f9dddd; }
+    .notice.info { color: #185c64; background: #dff2f3; }
+
+    .login {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(21,34,56,.78);
+      backdrop-filter: blur(12px);
+    }
+    .login.hidden { display: none; }
+    .login-card { width: min(430px, 100%); padding: 30px; background: var(--paper); border-radius: 20px; box-shadow: 0 30px 90px rgba(0,0,0,.3); }
+    .login-card h2 { margin: 7px 0; font: 700 28px "Bahnschrift", sans-serif; }
+    .login-card p { margin: 0 0 20px; color: var(--ink-soft); line-height: 1.55; }
+
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: relative; height: auto; padding: 18px 20px; }
+      .brand { margin: 0; }
+      .sidebar nav, .side-status, .sidebar::after { display: none; }
+      .control-grid, .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      main { padding: 24px 14px 40px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .field-row { grid-template-columns: 1fr; }
+      .profile-grid { grid-template-columns: 1fr; }
+      .rail-panel { min-height: 570px; padding: 20px 15px; }
+      .rails { grid-template-columns: 82px 1fr 90px; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-step { border-top: 0; border-left: 2px solid var(--line); }
+      .results { padding: 20px 14px; overflow-x: auto; }
+      .results-head { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .track.active::before { animation: none; right: 0; left: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login" id="login">
+    <form class="login-card" id="login-form">
+      <div class="eyebrow">Local access</div>
+      <h2>Masuk ke control room</h2>
+      <p>Gunakan <span class="mono">SWARMFOLD_COORDINATOR_TOKEN</span> dari file <span class="mono">.env</span>. Token hanya disimpan selama tab ini terbuka.</p>
+      <div class="field">
+        <label for="token">Coordinator token</label>
+        <input id="token" name="token" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="primary" type="submit">Hubungkan dashboard</button>
+      <div class="notice error" id="login-error"></div>
+    </form>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><strong>SwarmFold</strong><small>Control room</small></div>
+      </div>
+      <p class="nav-label">Workspace</p>
+      <nav aria-label="Navigasi utama">
+        <button class="active" type="button">Run experiment</button>
+        <button type="button" data-scroll="results">Results</button>
+        <button type="button" data-scroll="recent">Run history</button>
+        <button type="button" data-scroll="settings">Connection</button>
+      </nav>
+      <div class="side-status">
+        <p>Training concurrency</p>
+        <strong>1 local worker</strong>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Evidence before promotion</div>
+          <h1>Experiment control room</h1>
+        </div>
+        <div class="connection" id="connection"><span class="connection-dot"></span><span id="connection-text">Checking connection</span></div>
+      </header>
+
+      <section class="control-grid">
+        <form class="panel run-form" id="run-form">
+          <div class="eyebrow">New run</div>
+          <h2 class="panel-title">Masukkan bundle kompetisi</h2>
+          <p class="panel-copy">Pilih semua file yang tersedia sekaligus. Model akan membaca struktur dan brief, lalu meminta konfirmasi sebelum training.</p>
+          <div class="field">
+            <label for="files">Semua file kompetisi</label>
+            <input id="files" name="files" type="file" multiple required>
+            <small>Wajib menyertakan satu file Markdown berisi brief/rules. Nama file dan format data tidak dihardcode.</small>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="experiments">Jumlah eksperimen</label>
+              <input id="experiments" name="max_experiments" type="number" value="4" min="1" max="20" required>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="iteration">Iteration ID</label>
+              <input id="iteration" name="iteration_id" value="local-iteration" maxlength="128" required>
+            </div>
+            <div class="field">
+              <label for="lane">Lane</label>
+              <select id="lane" name="lane_id">
+                <option value="ai-a">AI A</option>
+                <option value="ai-b">AI B</option>
+                <option value="ai-c">AI C</option>
+              </select>
+            </div>
+          </div>
+          <input name="max_training_seconds" type="hidden" value="120">
+          <button class="primary" id="run-button" type="submit">Analisis bundle</button>
+          <div class="notice" id="run-notice"></div>
+        </form>
+
+        <article class="panel rail-panel">
+          <div class="rail-head">
+            <div>
+              <div class="eyebrow">Six-lane evidence rail</div>
+              <h2 class="panel-title" id="active-title">Belum ada run aktif</h2>
+              <p class="panel-copy" id="active-copy">Mulai eksperimen untuk melihat alur dari proposal hingga packet.</p>
+            </div>
+            <span class="status-pill" id="run-status">IDLE</span>
+          </div>
+
+          <div class="rails" aria-label="Status enam lane">
+            <div class="lane-list">
+              <div class="lane" data-lane="ai-a"><span class="lane-dot"></span>AI A</div>
+              <div class="lane" data-lane="ai-b"><span class="lane-dot"></span>AI B</div>
+              <div class="lane" data-lane="ai-c"><span class="lane-dot"></span>AI C</div>
+              <div class="lane"><span class="lane-dot"></span>Human 1</div>
+              <div class="lane"><span class="lane-dot"></span>Human 2</div>
+              <div class="lane"><span class="lane-dot"></span>Human 3</div>
+            </div>
+            <div class="tracks">
+              <div class="track" data-track="ai-a"></div>
+              <div class="track" data-track="ai-b"></div>
+              <div class="track" data-track="ai-c"></div>
+              <div class="track"></div><div class="track"></div><div class="track"></div>
+            </div>
+            <div class="gate-list">
+              <div class="gate main">Evidence gate</div>
+              <div class="gate">Candidate</div>
+              <div class="gate">Failure</div>
+              <div class="gate">Waiver</div>
+              <div class="gate">Leaderboard</div>
+              <div class="gate">Knowledge</div>
+            </div>
+          </div>
+
+          <div class="flow" id="flow">
+            <div class="flow-step">Intake</div>
+            <div class="flow-step">Profile</div>
+            <div class="flow-step">Confirm</div>
+            <div class="flow-step">Train</div>
+            <div class="flow-step">Verify</div>
+            <div class="flow-step">Publish</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel results hidden" id="profile-review">
+        <div class="results-head">
+          <div>
+            <div class="eyebrow">Human confirmation gate</div>
+            <h2 class="panel-title">Apakah pemahaman ini sudah benar?</h2>
+          </div>
+          <span class="status-pill" id="profile-confidence">Belum tersedia</span>
+        </div>
+        <p class="panel-copy" id="profile-summary"></p>
+        <div class="profile-grid" id="profile-facts"></div>
+        <div class="field">
+          <label for="profile-brief">Competition brief</label>
+          <select id="profile-brief"></select>
+          <small>Pilih satu Markdown yang menjadi sumber aturan dan konteks run.</small>
+        </div>
+        <div class="question-list" id="profile-questions"></div>
+        <div class="field">
+          <label for="profile-json">Profil terstruktur, boleh dikoreksi sebelum konfirmasi</label>
+          <textarea id="profile-json" spellcheck="false"></textarea>
+        </div>
+        <button class="primary" id="confirm-profile" type="button">Pemahaman sudah benar, jalankan</button>
+        <div class="notice" id="profile-notice"></div>
+      </section>
+
+      <section class="panel results" id="results">
+        <div class="results-head">
+          <div>
+            <div class="eyebrow">Verified evidence</div>
+            <h2 class="panel-title">Experiment results</h2>
+          </div>
+          <div class="artifact-actions" id="artifact-actions"></div>
+        </div>
+        <div id="results-table"><div class="empty">Hasil model akan muncul setelah run selesai.</div></div>
+        <div id="literature-panel"></div>
+      </section>
+
+      <div class="bottom-grid">
+        <section class="panel recent" id="recent">
+          <div class="eyebrow">Durable history</div>
+          <h2 class="panel-title">Recent runs</h2>
+          <div class="run-list" id="run-list"><div class="empty">Belum ada run tersimpan.</div></div>
+        </section>
+
+        <aside class="panel settings" id="settings">
+          <div class="eyebrow">Provider</div>
+          <h2 class="panel-title">Connection</h2>
+          <dl>
+            <div><dt>Planner</dt><dd id="config-planner">Belum tersedia</dd></div>
+            <div><dt>Model</dt><dd id="config-model">Belum tersedia</dd></div>
+            <div><dt>Base URL</dt><dd id="config-base">Belum tersedia</dd></div>
+            <div><dt>API key</dt><dd id="config-key">Belum tersedia</dd></div>
+          </dl>
+          <button class="secondary" id="check-provider" type="button">Test connection</button>
+          <button class="secondary" id="logout" type="button">Ganti token</button>
+          <div class="notice" id="provider-notice"></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const state = { token: sessionStorage.getItem("swarmfold-token") || "", activeRun: null, poller: null };
+    const login = document.getElementById("login");
+    const loginError = document.getElementById("login-error");
+
+    async function api(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      if (state.token) headers.set("Authorization", `Bearer ${state.token}`);
+      const response = await fetch(path, { ...options, headers });
+      const contentType = response.headers.get("content-type") || "";
+      const body = contentType.includes("application/json") ? await response.json() : await response.text();
+      if (!response.ok) throw new Error(body.detail || body || `HTTP ${response.status}`);
+      return body;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>'"]/g, character => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+      })[character]);
+    }
+
+    function showNotice(element, message, kind = "info") {
+      element.textContent = message;
+      element.className = `notice show ${kind}`;
+    }
+
+    async function connect() {
+      try {
+        const config = await api("/v1/ui/config");
+        login.classList.add("hidden");
+        loginError.className = "notice error";
+        document.getElementById("connection").classList.add("online");
+        document.getElementById("connection-text").textContent = "Coordinator connected";
+        document.getElementById("config-planner").textContent = config.planner;
+        document.getElementById("config-model").textContent = config.model;
+        document.getElementById("config-base").textContent = config.base_url;
+        document.getElementById("config-key").textContent = config.api_key_configured ? "Configured" : "Missing";
+        await loadRuns();
+      } catch (error) {
+        login.classList.remove("hidden");
+        document.getElementById("connection").classList.remove("online");
+        document.getElementById("connection-text").textContent = "Authentication required";
+        if (state.token) showNotice(loginError, error.message, "error");
+      }
+    }
+
+    document.getElementById("login-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      state.token = document.getElementById("token").value;
+      sessionStorage.setItem("swarmfold-token", state.token);
+      await connect();
+    });
+
+    document.getElementById("logout").addEventListener("click", () => {
+      sessionStorage.removeItem("swarmfold-token");
+      state.token = "";
+      login.classList.remove("hidden");
+      document.getElementById("token").value = "";
+      document.getElementById("token").focus();
+    });
+
+    document.querySelectorAll("[data-scroll]").forEach(button => button.addEventListener("click", () => {
+      document.getElementById(button.dataset.scroll).scrollIntoView({ behavior: "smooth" });
+    }));
+
+    document.getElementById("run-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = document.getElementById("run-button");
+      const notice = document.getElementById("run-notice");
+      button.disabled = true;
+      button.textContent = "Membaca bundle";
+      try {
+        const record = await api("/v1/ui/runs", { method: "POST", body: new FormData(event.target) });
+        state.activeRun = record.run_id;
+        renderRun(record);
+        showNotice(notice, `Bundle ${record.run_id.slice(0, 8)} sedang dipahami oleh model.`, "info");
+        startPolling(record.run_id);
+        await loadRuns();
+      } catch (error) {
+        showNotice(notice, error.message, "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Analisis bundle";
+      }
+    });
+
+    function startPolling(runId) {
+      if (state.poller) clearInterval(state.poller);
+      const poll = async () => {
+        try {
+          const record = await api(`/v1/ui/runs/${runId}`);
+          renderRun(record);
+          if (!["PROFILING", "QUEUED", "RUNNING"].includes(record.status)) {
+            clearInterval(state.poller);
+            state.poller = null;
+            await loadRuns();
+          }
+        } catch (error) {
+          clearInterval(state.poller);
+          state.poller = null;
+          showNotice(document.getElementById("run-notice"), error.message, "error");
+        }
+      };
+      poll();
+      state.poller = setInterval(poll, 1600);
+    }
+
+    function renderRun(record) {
+      state.activeRun = record.run_id;
+      const status = String(record.status || "UNKNOWN");
+      const pill = document.getElementById("run-status");
+      pill.textContent = status;
+      pill.className = `status-pill ${status.toLowerCase()}`;
+      document.getElementById("active-title").textContent = `${record.dataset_name} · ${record.lane_id}`;
+      document.getElementById("active-copy").textContent = record.error
+        ? record.error
+        : record.profile
+          ? `${record.model} · ${record.profile.task_type} · ${record.max_experiments} experiments`
+          : `${record.model} · memahami ${record.bundle_files?.length || 1} file`;
+      document.querySelectorAll(".lane").forEach(element => element.classList.remove("active", "done"));
+      document.querySelectorAll(".track").forEach(element => element.classList.remove("active"));
+      const lane = document.querySelector(`[data-lane="${record.lane_id}"]`);
+      const track = document.querySelector(`[data-track="${record.lane_id}"]`);
+      if (lane) lane.classList.add(["ACCEPTED", "REJECTED"].includes(status) ? "done" : "active");
+      if (track && ["PROFILING", "QUEUED", "RUNNING"].includes(status)) track.classList.add("active");
+      const steps = [...document.querySelectorAll(".flow-step")];
+      steps.forEach(step => step.classList.remove("active", "done"));
+      if (status === "PROFILING") {
+        steps[0].classList.add("done");
+        steps[1].classList.add("active");
+      }
+      if (status === "AWAITING_CONFIRMATION") {
+        steps.slice(0, 2).forEach(step => step.classList.add("done"));
+        steps[2].classList.add("active");
+      }
+      if (status === "QUEUED") steps.slice(0, 3).forEach(step => step.classList.add("done"));
+      if (status === "RUNNING") {
+        steps.slice(0, 3).forEach(step => step.classList.add("done"));
+        steps[3].classList.add("active");
+      }
+      if (["ACCEPTED", "REJECTED"].includes(status)) steps.forEach(step => step.classList.add("done"));
+      if (status === "FAILED") steps.find(step => !step.classList.contains("done"))?.classList.add("active");
+      renderProfile(record);
+      renderResults(record);
+    }
+
+    function renderProfile(record) {
+      const panel = document.getElementById("profile-review");
+      if (!record.profile) {
+        panel.classList.add("hidden");
+        return;
+      }
+      const profile = record.profile;
+      panel.classList.remove("hidden");
+      document.getElementById("profile-confidence").textContent = `${Math.round(Number(profile.confidence || 0) * 100)}% confidence`;
+      document.getElementById("profile-summary").textContent = profile.summary;
+      document.getElementById("profile-facts").innerHTML = [
+        ["Task", profile.task_type],
+        ["Metric", profile.metric || "Belum diketahui"],
+        ["Training source", profile.training_file || "Belum diketahui"],
+        ["Inference source", (profile.inference_files || []).join(", ") || "Belum diketahui"],
+        ["Target", profile.target_column || "Belum diketahui"],
+        ["Submission", profile.submission_template || "Belum diketahui"]
+      ].map(([label, value]) => `<div class="profile-fact"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
+      const editor = document.getElementById("profile-json");
+      if (editor.dataset.runId !== record.run_id) {
+        editor.value = JSON.stringify(profile, null, 2);
+        editor.dataset.runId = record.run_id;
+      }
+      const editableProfile = JSON.parse(editor.value);
+      renderBriefSelector(editableProfile);
+      renderIssues(editableProfile, record.status);
+    }
+
+    function renderBriefSelector(profile) {
+      const selector = document.getElementById("profile-brief");
+      const candidates = (profile.files || [])
+        .map(item => item.filename)
+        .filter(name => name.toLowerCase().endsWith(".md"));
+      const preferred = candidates.find(name => name.toLowerCase() === "project.md")
+        || candidates.find(name => name.toLowerCase().includes("project"))
+        || candidates.find(name => name.toLowerCase() === "readme.md")
+        || candidates[0]
+        || "";
+      const selected = candidates.includes(profile.brief_file) ? profile.brief_file : preferred;
+      selector.innerHTML = candidates.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+      selector.value = selected;
+      if (selected && profile.brief_file !== selected) {
+        profile.brief_file = selected;
+        document.getElementById("profile-json").value = JSON.stringify(profile, null, 2);
+      }
+      selector.onchange = () => {
+        const current = JSON.parse(document.getElementById("profile-json").value);
+        current.brief_file = selector.value;
+        document.getElementById("profile-json").value = JSON.stringify(current, null, 2);
+        showNotice(document.getElementById("profile-notice"), "Competition brief diperbarui.", "info");
+      };
+    }
+
+    function suggestedResolution(issue) {
+      const normalized = issue.toLowerCase();
+      if (normalized.includes("categorical") || normalized.includes("non-numeric")) {
+        return "Gunakan preprocessing otomatis: imputasi nilai kosong, encoding kategori yang aman untuk kategori baru, dan fit transformer hanya pada fold training.";
+      }
+      return "";
+    }
+
+    function renderIssues(profile, status) {
+      const blockers = (profile.blockers || []).map(issue => ({ kind: "Blocker", issue }));
+      const questions = (profile.questions || []).map(issue => ({ kind: "Question", issue }));
+      const issues = [...blockers, ...questions];
+      const resolutions = new Map((profile.resolutions || []).map(item => [item.issue, item]));
+      const container = document.getElementById("profile-questions");
+      container.innerHTML = issues.length ? issues.map((item, index) => {
+        const resolution = resolutions.get(item.issue);
+        const value = resolution?.response || suggestedResolution(item.issue);
+        return `<article class="issue-card ${resolution ? "resolved" : ""}" data-issue-index="${index}">
+          <div class="issue-head"><span class="issue-kind">${item.kind}</span><span class="issue-state">${resolution ? "Resolved" : "Perlu jawaban"}</span></div>
+          <p>${escapeHtml(item.issue)}</p>
+          <label>Resolusi atau jawaban</label>
+          <textarea data-issue-response="${index}" placeholder="Jelaskan keputusan yang akan dipakai.">${escapeHtml(value)}</textarea>
+          <button class="secondary" type="button" data-resolve-issue="${index}">${resolution ? "Perbarui resolusi" : "Simpan sebagai resolved"}</button>
+        </article>`;
+      }).join("") : '<div class="issue-empty">Tidak ada blocker atau pertanyaan yang belum dijawab.</div>';
+      container.querySelectorAll("[data-resolve-issue]").forEach(button => button.addEventListener("click", () => {
+        const index = Number(button.dataset.resolveIssue);
+        const response = container.querySelector(`[data-issue-response="${index}"]`).value.trim();
+        if (!response) {
+          showNotice(document.getElementById("profile-notice"), "Isi resolusi atau jawaban terlebih dahulu.", "error");
+          return;
+        }
+        const current = JSON.parse(document.getElementById("profile-json").value);
+        const currentIssues = [
+          ...(current.blockers || []).map(issue => ({ kind: "Blocker", issue })),
+          ...(current.questions || []).map(issue => ({ kind: "Question", issue }))
+        ];
+        const issue = currentIssues[index].issue;
+        current.resolutions = (current.resolutions || []).filter(item => item.issue !== issue);
+        current.resolutions.push({ issue, response, status: "resolved" });
+        const required = currentIssues.map(item => item.issue);
+        const resolved = new Set(current.resolutions.map(item => item.issue));
+        current.execution_ready = required.every(item => resolved.has(item));
+        document.getElementById("profile-json").value = JSON.stringify(current, null, 2);
+        showNotice(document.getElementById("profile-notice"), "Resolusi disimpan ke profil terstruktur.", "info");
+        renderIssues(current, status);
+      }));
+      const unresolved = issues.filter(item => !resolutions.has(item.issue));
+      document.getElementById("confirm-profile").disabled = status !== "AWAITING_CONFIRMATION" || unresolved.length > 0;
+    }
+
+    document.getElementById("confirm-profile").addEventListener("click", async () => {
+      const notice = document.getElementById("profile-notice");
+      const button = document.getElementById("confirm-profile");
+      try {
+        const profile = JSON.parse(document.getElementById("profile-json").value);
+        button.disabled = true;
+        button.textContent = "Mengunci profil";
+        const record = await api(`/v1/ui/runs/${state.activeRun}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(profile)
+        });
+        renderRun(record);
+        showNotice(notice, "Profil dikunci. Training dimulai.", "info");
+        startPolling(record.run_id);
+      } catch (error) {
+        showNotice(notice, error.message, "error");
+      } finally {
+        button.textContent = "Pemahaman sudah benar, jalankan";
+        if (state.activeRun) {
+          const current = await api(`/v1/ui/runs/${state.activeRun}`).catch(() => null);
+          button.disabled = current?.status !== "AWAITING_CONFIRMATION";
+        }
+      }
+    });
+
+    function renderResults(record) {
+      const container = document.getElementById("results-table");
+      const literaturePanel = document.getElementById("literature-panel");
+      const review = record.literature_research;
+      literaturePanel.innerHTML = review ? `<div class="profile-summary">
+        <div class="eyebrow">Literature Research Agent</div>
+        <h3>${escapeHtml(review.status)}</h3>
+        <p>${review.sources?.length || 0} sumber akademik ditemukan. Literatur menjadi dasar hipotesis, sedangkan klaim performa tetap memerlukan validasi lokal.</p>
+        ${(review.sources || []).slice(0, 5).map(source => `<p><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>${source.year ? ` (${escapeHtml(source.year)})` : ""}</p>`).join("")}
+        ${(review.handling_recommendations || []).map(item => `<p>${escapeHtml(item)}</p>`).join("")}
+      </div>` : "";
+      const experiments = record.experiments || [];
+      if (!experiments.length) {
+        container.innerHTML = `<div class="empty">${record.status === "FAILED" ? escapeHtml(record.error) : "Eksperimen sedang diproses."}</div>`;
+        document.getElementById("artifact-actions").innerHTML = "";
+        return;
+      }
+      container.innerHTML = `<table>
+        <thead><tr><th>Model</th><th>Accuracy</th><th>Verdict</th><th>Duration</th><th>Peak memory</th></tr></thead>
+        <tbody>${experiments.map(item => `<tr>
+          <td><strong>${escapeHtml(item.model_family)}</strong><br><small class="mono">${escapeHtml(item.experiment_id)}</small></td>
+          <td class="metric">${item.score == null ? "Belum tersedia" : `${escapeHtml(item.metric_name)} ${Number(item.score).toFixed(4)}`}</td>
+          <td>${escapeHtml(item.verdict || item.status)}</td>
+          <td class="metric">${item.duration_seconds == null ? "Belum tersedia" : Number(item.duration_seconds).toFixed(2) + "s"}</td>
+          <td class="metric">${item.resource_usage?.peak_rss_mb == null ? "Belum tersedia" : Number(item.resource_usage.peak_rss_mb).toFixed(1) + " MB"}</td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+      const actions = document.getElementById("artifact-actions");
+      const names = record.packet ? ["packet.zip", "submission.csv", "end-to-end.ipynb", "literature-review.json", "decision.md", "experiment-ledger.jsonl"] : [];
+      actions.innerHTML = names.map(name => `<button class="secondary" type="button" data-download="${name}">${name}</button>`).join("");
+      actions.querySelectorAll("[data-download]").forEach(button => button.addEventListener("click", () => downloadArtifact(record.run_id, button.dataset.download)));
+    }
+
+    async function loadRuns() {
+      const runs = await api("/v1/ui/runs");
+      const container = document.getElementById("run-list");
+      if (!runs.length) {
+        container.innerHTML = '<div class="empty">Belum ada run tersimpan.</div>';
+        return;
+      }
+      container.innerHTML = runs.map(run => `<button class="run-item" type="button" data-run="${run.run_id}">
+        <span><strong>${escapeHtml(run.dataset_name)}</strong><small>${escapeHtml(run.model)}</small></span>
+        <span class="mono">${escapeHtml(run.status)}</span>
+      </button>`).join("");
+      container.querySelectorAll("[data-run]").forEach(button => button.addEventListener("click", async () => {
+        const record = await api(`/v1/ui/runs/${button.dataset.run}`);
+        renderRun(record);
+        document.getElementById("results").scrollIntoView({ behavior: "smooth" });
+        if (["PROFILING", "QUEUED", "RUNNING"].includes(record.status)) startPolling(record.run_id);
+      }));
+      if (!state.activeRun) renderRun(runs[0]);
+    }
+
+    async function downloadArtifact(runId, name) {
+      try {
+        const response = await fetch(`/v1/ui/runs/${runId}/artifacts/${encodeURIComponent(name)}`, {
+          headers: { Authorization: `Bearer ${state.token}` }
+        });
+        if (!response.ok) {
+          const body = await response.json();
+          throw new Error(body.detail || `HTTP ${response.status}`);
+        }
+        const url = URL.createObjectURL(await response.blob());
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = name;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        showNotice(document.getElementById("run-notice"), error.message, "error");
+      }
+    }
+
+    document.getElementById("check-provider").addEventListener("click", async () => {
+      const notice = document.getElementById("provider-notice");
+      showNotice(notice, "Checking provider…", "info");
+      try {
+        const result = await api("/v1/ui/provider-check", { method: "POST" });
+        showNotice(notice, `${result.model_count} models available. Selected model ${result.selected_model_available ? "is ready" : "was not found"}.`, result.selected_model_available ? "info" : "error");
+      } catch (error) {
+        showNotice(notice, error.message, "error");
+      }
+    });
+
+    connect();
+  </script>
+</body>
+</html>

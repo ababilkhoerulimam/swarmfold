@@ -1,0 +1,14 @@
+{
+  "packet_type": "failure",
+  "iteration_id": "iteration-1",
+  "lane_id": "human-2",
+  "experiment_id": "human-2-experiment-1",
+  "run_id": "human-2-run-1",
+  "terminal_reason": "Replace this text with the verified terminal failure reason.",
+  "completed_run_ids": [],
+  "missing_deliverables": [
+    "submission.csv"
+  ],
+  "retry_useful": false,
+  "decision": "Replace this text with the evidence, limitations, and recommended next action."
+}

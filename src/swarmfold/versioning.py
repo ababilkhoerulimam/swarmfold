@@ -31,9 +31,7 @@ def migrate_record(
     while version != target:
         key = (record_type, version)
         if key in visited or key not in _MIGRATIONS:
-            raise MigrationError(
-                f"No migration path for {record_type} from {version} to {target}"
-            )
+            raise MigrationError(f"No migration path for {record_type} from {version} to {target}")
         visited.add(key)
         migrated = _MIGRATIONS[key](migrated)
         next_version = migrated.get("schema_version")

@@ -153,9 +153,7 @@ def _ranks(values: list[float]) -> list[float]:
     position = 0
     while position < len(ordered):
         end = position + 1
-        while end < len(ordered) and math.isclose(
-            values[ordered[end]], values[ordered[position]]
-        ):
+        while end < len(ordered) and math.isclose(values[ordered[end]], values[ordered[position]]):
             end += 1
         rank = (position + 1 + end) / 2
         for index in ordered[position:end]:

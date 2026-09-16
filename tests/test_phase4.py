@@ -69,9 +69,12 @@ def test_six_lane_knowledge_loop_and_next_iteration(tmp_path: Path) -> None:
                 POD_TOKENS[pod_id],
             )
 
-        assert client.get(
-            "/v1/iterations/iteration-six/barrier", headers=_auth(ADMIN_TOKEN)
-        ).json()["status"] == "PENDING"
+        assert (
+            client.get("/v1/iterations/iteration-six/barrier", headers=_auth(ADMIN_TOKEN)).json()[
+                "status"
+            ]
+            == "PENDING"
+        )
 
         human_packets = _human_packets(tmp_path, contracts, ai_packets["ai-a"])
         forbidden = _upload_packet(
@@ -86,9 +89,7 @@ def test_six_lane_knowledge_loop_and_next_iteration(tmp_path: Path) -> None:
         for lane_id, packet in human_packets.items():
             _upload_packet(client, tmp_path, packet, lane_id, ADMIN_TOKEN)
 
-        barrier = client.get(
-            "/v1/iterations/iteration-six/barrier", headers=_auth(ADMIN_TOKEN)
-        )
+        barrier = client.get("/v1/iterations/iteration-six/barrier", headers=_auth(ADMIN_TOKEN))
         assert barrier.json() == {
             "iteration_id": "iteration-six",
             "status": "READY",
@@ -189,9 +190,7 @@ def test_six_lane_knowledge_loop_and_next_iteration(tmp_path: Path) -> None:
             "/v1/iterations", json=next_iteration.model_dump(), headers=_auth(ADMIN_TOKEN)
         )
         assert next_created.status_code == 201
-        fetched = client.get(
-            "/v1/iterations/iteration-next", headers=_auth(POD_TOKENS["pod-a"])
-        )
+        fetched = client.get("/v1/iterations/iteration-next", headers=_auth(POD_TOKENS["pod-a"]))
         assert fetched.json()["knowledge_snapshot_id"] == "v001"
         assert fetched.json()["knowledge_snapshot"]["snapshot_id"] == "v001"
         assert fetched.json()["knowledge_snapshot"]["contents"]["hypothesis-backlog.json"]
@@ -214,9 +213,12 @@ def test_local_only_merge_requires_explicit_leaderboard_close(tmp_path: Path) ->
             lane_charters=_six_charters(),
             submission_quota=0,
         )
-        assert client.post(
-            "/v1/iterations", json=iteration.model_dump(), headers=_auth(ADMIN_TOKEN)
-        ).status_code == 201
+        assert (
+            client.post(
+                "/v1/iterations", json=iteration.model_dump(), headers=_auth(ADMIN_TOKEN)
+            ).status_code
+            == 201
+        )
         ai_packets = _ai_packets(tmp_path, contracts, prefix="local")
         for pod_id, lane_id in (("pod-a", "ai-a"), ("pod-b", "ai-b"), ("pod-c", "ai-c")):
             client.post(
@@ -243,16 +245,19 @@ def test_local_only_merge_requires_explicit_leaderboard_close(tmp_path: Path) ->
                 iteration_id="local-only",
             )
         for lane_id in ("ai-a", "ai-b", "ai-c"):
-            assert client.post(
-                "/v1/iterations/local-only/submission-decisions",
-                json={
-                    "lane_id": lane_id,
-                    "decision": "WITHHELD",
-                    "approver": "team-owner",
-                    "reason": "No external upload expected for this iteration",
-                },
-                headers=_auth(ADMIN_TOKEN),
-            ).status_code == 200
+            assert (
+                client.post(
+                    "/v1/iterations/local-only/submission-decisions",
+                    json={
+                        "lane_id": lane_id,
+                        "decision": "WITHHELD",
+                        "approver": "team-owner",
+                        "reason": "No external upload expected for this iteration",
+                    },
+                    headers=_auth(ADMIN_TOKEN),
+                ).status_code
+                == 200
+            )
         closed = client.post(
             "/v1/iterations/local-only/leaderboard/close", headers=_auth(ADMIN_TOKEN)
         )
@@ -293,9 +298,7 @@ def _six_charters() -> list[LaneCharter]:
     ]
 
 
-def _ai_packets(
-    tmp_path: Path, contracts: ContractBundle, prefix: str = "main"
-) -> dict[str, Path]:
+def _ai_packets(tmp_path: Path, contracts: ContractBundle, prefix: str = "main") -> dict[str, Path]:
     packets = {}
     iteration_id = "local-only" if prefix == "local" else "iteration-six"
     for lane_id in ("ai-a", "ai-b", "ai-c"):
@@ -313,9 +316,7 @@ def _ai_packets(
     return packets
 
 
-def _human_packets(
-    tmp_path: Path, contracts: ContractBundle, ai_packet: Path
-) -> dict[str, Path]:
+def _human_packets(tmp_path: Path, contracts: ContractBundle, ai_packet: Path) -> dict[str, Path]:
     inputs = tmp_path / "human-inputs"
     inputs.mkdir()
     submission = inputs / "submission.csv"
@@ -352,9 +353,7 @@ def _human_packets(
     failure_inputs.mkdir()
     failure_ledger = failure_inputs / "ledger.jsonl"
     failure_findings = failure_inputs / "findings.jsonl"
-    failure_ledger.write_text(
-        json.dumps({"run_id": "human-run-2", "status": "FAILED"}) + "\n"
-    )
+    failure_ledger.write_text(json.dumps({"run_id": "human-run-2", "status": "FAILED"}) + "\n")
     opposed = _finding(contracts, "human-2", "human-run-2", "REJECTED")
     failure_findings.write_text(json.dumps(opposed.model_dump()) + "\n", encoding="utf-8")
     failure = publish_human_packet(
@@ -417,9 +416,7 @@ def _human_waivers(
     return packets
 
 
-def _finding(
-    contracts: ContractBundle, lane_id: str, run_id: str, status: str
-) -> KnowledgeFinding:
+def _finding(contracts: ContractBundle, lane_id: str, run_id: str, status: str) -> KnowledgeFinding:
     return KnowledgeFinding(
         finding_id=f"iteration-six-{lane_id}-finding",
         iteration_id="iteration-six",

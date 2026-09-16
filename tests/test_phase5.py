@@ -138,9 +138,7 @@ def _tamper_backup(source: Path, destination: Path) -> None:
     with tarfile.open(source, "r:gz") as archive:
         members = archive.getmembers()
         values = {
-            member.name: archive.extractfile(member).read()
-            for member in members
-            if member.isfile()
+            member.name: archive.extractfile(member).read() for member in members if member.isfile()
         }
     values["artifacts/packet.json"] = b'{"verified": false}\n'
     with tarfile.open(destination, "w:gz") as archive:

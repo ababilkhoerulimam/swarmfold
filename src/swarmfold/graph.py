@@ -32,7 +32,9 @@ from swarmfold.roles import (
     engineer_model,
     initialize_pod,
     inspect_eda,
+    inspect_experiment_memory,
     inspect_rules,
+    reflect_iteration,
     route_after_critique,
     scout_models,
     verify_selected_evidence,
@@ -54,15 +56,14 @@ def build_experiment_graph(
     builder.add_node("problem_formulation_agent", formulate_problem)
     builder.add_node("data_contract_agent", build_data_contract)
     builder.add_node("validation_agent", audit_validation)
-    builder.add_node(
-        "temporal_validation_leakage_auditor", audit_temporal_validation
-    )
+    builder.add_node("temporal_validation_leakage_auditor", audit_temporal_validation)
     builder.add_node("eda_agent", inspect_eda)
     builder.add_node("domain_target_decomposition_agent", analyze_domain_decomposition)
     builder.add_node(
         "literature_research_agent",
         create_literature_research_node(resolved_research_agent),
     )
+    builder.add_node("experiment_memory_agent", inspect_experiment_memory)
     builder.add_node("model_scout", scout_models)
     builder.add_node("portfolio_planner", create_portfolio_node(resolved_planner))
     builder.add_node("feature_engineer", engineer_features)
@@ -71,6 +72,7 @@ def build_experiment_graph(
     builder.add_node("result_critic", critique_result)
     builder.add_node("oof_ensemble_scientist", assess_oof_ensemble)
     builder.add_node("robustness_uncertainty_agent", assess_robustness_uncertainty)
+    builder.add_node("iteration_reflector", reflect_iteration)
     builder.add_node("evidence_verifier", verify_selected_evidence)
     builder.add_node("submission_auditor", audit_submission)
     builder.add_node("publisher", publish_terminal_packet)
@@ -84,7 +86,8 @@ def build_experiment_graph(
     builder.add_edge("temporal_validation_leakage_auditor", "eda_agent")
     builder.add_edge("eda_agent", "domain_target_decomposition_agent")
     builder.add_edge("domain_target_decomposition_agent", "literature_research_agent")
-    builder.add_edge("literature_research_agent", "model_scout")
+    builder.add_edge("literature_research_agent", "experiment_memory_agent")
+    builder.add_edge("experiment_memory_agent", "model_scout")
     builder.add_edge("model_scout", "portfolio_planner")
     builder.add_edge("portfolio_planner", "feature_engineer")
     builder.add_edge("feature_engineer", "model_engineer")
@@ -96,7 +99,8 @@ def build_experiment_graph(
         {"continue": "feature_engineer", "verify": "oof_ensemble_scientist"},
     )
     builder.add_edge("oof_ensemble_scientist", "robustness_uncertainty_agent")
-    builder.add_edge("robustness_uncertainty_agent", "evidence_verifier")
+    builder.add_edge("robustness_uncertainty_agent", "iteration_reflector")
+    builder.add_edge("iteration_reflector", "evidence_verifier")
     builder.add_edge("evidence_verifier", "submission_auditor")
     builder.add_edge("submission_auditor", "publisher")
     builder.add_edge("publisher", END)
@@ -107,7 +111,9 @@ def run_experiment(
     dataset_path: str | Path,
     *,
     target_column: str = "target",
-    metric_name: str = "accuracy",
+    task_type: str | None = None,
+    metric_name: str | None = None,
+    validation_strategy: str | None = None,
     test_dataset_path: str | Path | None = None,
     sample_submission_path: str | Path | None = None,
     project_path: str | Path | None = None,
@@ -120,13 +126,14 @@ def run_experiment(
     planner: ProposalPlanner | None = None,
     research_agent: LiteratureResearchAgent | None = None,
     max_experiments: int = 4,
-    max_training_seconds: float = 120.0,
+    max_training_seconds: float | None = None,
     thread_id: str | None = None,
     resume: bool = False,
     interrupt_before: str | None = None,
     iteration_id: str = "local-iteration",
     lane_id: str = "ai-a",
     contracts: ContractBundle | dict[str, object] | None = None,
+    prior_knowledge: list[dict[str, object]] | None = None,
 ) -> ExperimentState:
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
@@ -145,7 +152,6 @@ def run_experiment(
     initial_state: ExperimentState = {
         "dataset_path": str(Path(dataset_path).resolve()),
         "target_column": target_column,
-        "metric_name": metric_name,
         "seed": seed,
         "test_size": test_size,
         "output_dir": str(output_path),
@@ -155,19 +161,22 @@ def run_experiment(
         "lane_id": lane_id,
         "budget": budget.model_dump(),
         "status": "PENDING",
+        "prior_knowledge": prior_knowledge or [],
     }
+    if metric_name is not None:
+        initial_state["metric_name"] = metric_name
+    if task_type is not None:
+        initial_state["requested_task_type"] = task_type
+    if validation_strategy is not None:
+        initial_state["validation_strategy"] = validation_strategy
     if test_dataset_path is not None:
         initial_state["test_dataset_path"] = str(Path(test_dataset_path).resolve())
     if sample_submission_path is not None:
-        initial_state["sample_submission_path"] = str(
-            Path(sample_submission_path).resolve()
-        )
+        initial_state["sample_submission_path"] = str(Path(sample_submission_path).resolve())
     if project_path is not None:
         resolved_project_path = Path(project_path).resolve()
         initial_state["project_path"] = str(resolved_project_path)
-        initial_state["project_context"] = resolved_project_path.read_text(
-            encoding="utf-8"
-        ).strip()
+        initial_state["project_context"] = resolved_project_path.read_text(encoding="utf-8").strip()
     if contracts is not None:
         initial_state["contracts"] = ContractBundle.model_validate(contracts).model_dump()
     checkpoint_path = output_path / "checkpoints.sqlite"

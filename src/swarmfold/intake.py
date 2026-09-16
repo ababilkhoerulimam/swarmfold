@@ -53,6 +53,42 @@ class CompetitionProfiler(Protocol):
     def profile(self, files: list[Path]) -> CompetitionProfile: ...
 
 
+AUDIO_EXTENSIONS: frozenset[str] = frozenset(
+    {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wma"}
+)
+VIDEO_EXTENSIONS: frozenset[str] = frozenset(
+    {".mp4", ".avi", ".mov", ".mkv", ".flv", ".webm"}
+)
+IMAGE_EXTENSIONS: frozenset[str] = frozenset(
+    {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif"}
+)
+UNSUPPORTED_BINARY_EXTENSIONS: frozenset[str] = frozenset(
+    {".h5", ".hdf5", ".npy", ".npz", ".pt", ".pth", ".pkl", ".bin", ".tar", ".gz"}
+)
+
+UNSUPPORTED_MODALITY_MAP: dict[str, frozenset[str]] = {
+    "audio": AUDIO_EXTENSIONS,
+    "video": VIDEO_EXTENSIONS,
+    "image": IMAGE_EXTENSIONS,
+    "unsupported_binary": UNSUPPORTED_BINARY_EXTENSIONS,
+}
+
+
+def detect_unsupported_modalities(files: list[Path]) -> list[str]:
+    blockers: list[str] = []
+    for path in files:
+        suffix = path.suffix.casefold()
+        for modality, extensions in UNSUPPORTED_MODALITY_MAP.items():
+            if suffix in extensions:
+                blockers.append(
+                    f"Unsupported modality detected in '{path.name}' "
+                    f"({modality}, extension '{suffix}'). "
+                    "SwarmFold currently supports tabular (CSV/Parquet) and text data."
+                )
+                break
+    return blockers
+
+
 class LLMCompetitionProfiler:
     def __init__(
         self,
@@ -83,7 +119,17 @@ class LLMCompetitionProfiler:
             raise RuntimeError(
                 f"Competition profiler failed with {type(exc).__name__}; check the model and bundle"
             ) from exc
-        return CompetitionProfile.model_validate(response)
+        profile = CompetitionProfile.model_validate(response)
+        unsupported = detect_unsupported_modalities(files)
+        if unsupported:
+            all_blockers = list(profile.blockers)
+            for b in unsupported:
+                if b not in all_blockers:
+                    all_blockers.append(b)
+            profile = profile.model_copy(
+                update={"execution_ready": False, "blockers": all_blockers}
+            )
+        return profile
 
 
 def _inspect_file(path: Path) -> dict[str, object]:
@@ -116,13 +162,24 @@ def _inspect_file_unchecked(path: Path) -> dict[str, object]:
                 if len(rows) < 5:
                     rows.append(dict(row))
         base.update(columns=list(reader.fieldnames or []), rows=row_count, sample=rows)
-    elif suffix == ".parquet":
+    elif suffix in {".parquet", ".pq"}:
         table = pq.read_table(path)
         base.update(
             columns=table.column_names,
             rows=table.num_rows,
             schema=str(table.schema),
             sample=table.slice(0, 5).to_pylist(),
+        )
+    elif suffix in AUDIO_EXTENSIONS:
+        base.update(modality="audio", inspection_note="Audio format recorded but unsupported")
+    elif suffix in VIDEO_EXTENSIONS:
+        base.update(modality="video", inspection_note="Video format recorded but unsupported")
+    elif suffix in IMAGE_EXTENSIONS:
+        base.update(modality="image", inspection_note="Image format recorded but unsupported")
+    elif suffix in UNSUPPORTED_BINARY_EXTENSIONS:
+        base.update(
+            modality="unsupported_binary",
+            inspection_note="Binary file format recorded but unsupported",
         )
     elif suffix in {".md", ".txt"}:
         base["content"] = path.read_text(encoding="utf-8")[:30_000]

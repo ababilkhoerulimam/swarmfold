@@ -29,8 +29,8 @@ def run_demo(
     planner: Annotated[Literal["mock", "live"] | None, typer.Option()] = None,
     model: Annotated[str | None, typer.Option()] = None,
     tracking_uri: Annotated[str | None, typer.Option()] = None,
-    max_experiments: Annotated[int, typer.Option(min=1, max=20)] = 4,
-    max_training_seconds: Annotated[float, typer.Option(min=0.001)] = 120.0,
+    max_experiments: Annotated[int, typer.Option(min=1, max=200)] = 4,
+    max_training_seconds: Annotated[float | None, typer.Option(min=0.001)] = None,
     thread_id: Annotated[str | None, typer.Option()] = None,
     resume: Annotated[bool, typer.Option()] = False,
     interrupt_before: Annotated[str | None, typer.Option(hidden=True)] = None,
@@ -500,6 +500,54 @@ def migrate_versioned_record(
         typer.echo(f"Record migration failed: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(str(write_json(output, migrated).resolve()))
+
+
+@app.command("capability-matrix")
+def capability_matrix_command(
+    format_type: Annotated[
+        Literal["markdown", "json"], typer.Option("--format", "-f")
+    ] = "markdown",
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+) -> None:
+    """Generate or export the multi-dimensional SwarmFold capability matrix."""
+    from swarmfold.capability_matrix import (
+        format_json_matrix,
+        format_markdown_matrix,
+    )
+
+    if format_type == "json":
+        data = format_json_matrix()
+        rendered = json.dumps(data, indent=2, sort_keys=True)
+    else:
+        rendered = format_markdown_matrix()
+
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
+        typer.echo(f"Capability matrix written to {output.resolve()}")
+    else:
+        typer.echo(rendered)
+
+
+@app.command("verify-package")
+def verify_package_command(
+    package: Annotated[
+        Path,
+        typer.Argument(exists=True, readable=True, help="Path to full-package.zip or package dir"),
+    ],
+) -> None:
+    """Programmatically verify the integrity, portability, and safety of a full package."""
+    from swarmfold.package_verifier import verify_portfolio_package
+
+    try:
+        report = verify_portfolio_package(package)
+    except Exception as exc:
+        typer.echo(f"Verification failed with error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    typer.echo(json.dumps(report, indent=2, sort_keys=True))
+    if not report.get("valid"):
+        raise typer.Exit(code=1)
 
 
 def _admin_client(coordinator_url: str):

@@ -1,0 +1,45 @@
+{
+  "audit_date": "2026-09-16",
+  "total_canonical_cards": 468,
+  "categories": {
+    "feature_engineering": 120,
+    "model": 89,
+    "validation": 67,
+    "robustness": 57,
+    "problem_formulation": 34,
+    "target_decomposition": 34,
+    "ensemble": 33,
+    "eda": 23,
+    "operations": 11
+  },
+  "duplicate_title_count": 0,
+  "duplicate_titles": {},
+  "merged_clusters_count": 10,
+  "fields_completeness": {
+    "title": 468,
+    "rationale": 468,
+    "fold_boundary_rule": 468,
+    "leakage_risk": 468,
+    "when_to_use": 458,
+    "when_not_to_use": 407,
+    "exact_package": 468,
+    "example_hypothesis": 419,
+    "acceptance_criteria": 418,
+    "source": 467
+  },
+  "executable_coverage": {
+    "executable_cards_count": 19,
+    "declared_research_cards_count": 449,
+    "executable_families": [
+      "bagging",
+      "extra_trees",
+      "hist_gradient_boosting",
+      "lightgbm",
+      "logistic_regression",
+      "random_forest",
+      "sgd_log_loss",
+      "soft_voting",
+      "stacking"
+    ]
+  }
+}

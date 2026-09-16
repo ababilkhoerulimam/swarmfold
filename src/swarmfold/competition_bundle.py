@@ -24,22 +24,23 @@ def inspect_competition_bundle(
     *,
     target_column: str | None = None,
 ) -> CompetitionBundleSpec:
-    train_headers, train_rows = _read_csv(Path(train_path), "training data")
-    test_headers, test_rows = _read_csv(Path(test_path), "inference data")
-    submission_headers, submission_rows = _read_csv(
-        Path(sample_submission_path), "submission template"
-    )
+    train_p = Path(train_path)
+    test_p = Path(test_path)
+    submission_p = Path(sample_submission_path)
+    train_headers, train_rows = _read_dataset(train_p, "training data")
+    test_headers, test_rows = _read_dataset(test_p, "inference data")
+    submission_headers, submission_rows = _read_dataset(submission_p, "submission template")
     project_context = Path(project_path).read_text(encoding="utf-8").strip()
     if not project_context:
         raise ValueError("project.md must contain the competition brief")
     if len(project_context) > 100_000:
         raise ValueError("project.md exceeds the 100 KB limit")
     if len(train_rows) < 10:
-        raise ValueError("train.csv must contain at least 10 rows")
+        raise ValueError(f"{train_p.name} must contain at least 10 rows")
     if not test_rows:
-        raise ValueError("test.csv must contain at least one row")
+        raise ValueError(f"{test_p.name} must contain at least one row")
     if len(submission_rows) != len(test_rows):
-        raise ValueError("sample_submission.csv row count must match test.csv")
+        raise ValueError(f"{submission_p.name} row count must match {test_p.name}")
 
     target_candidates = [name for name in train_headers if name not in test_headers]
     declared_target = target_column or _declared_target(project_context)
@@ -61,18 +62,18 @@ def inspect_competition_bundle(
     feature_columns = [name for name in train_headers if name != target_column]
     if feature_columns != test_headers:
         raise ValueError(
-            "test.csv columns must exactly match train.csv columns excluding the target"
+            f"{test_p.name} columns must exactly match {train_p.name} columns excluding the target"
         )
     id_columns = [name for name in submission_headers if name in test_headers]
     prediction_columns = [name for name in submission_headers if name not in id_columns]
     if len(prediction_columns) != 1:
         raise ValueError(
-            "This release requires exactly one prediction column in sample_submission.csv"
+            f"This release requires exactly one prediction column in {submission_p.name}"
         )
     prediction_column = prediction_columns[0]
     if not id_columns:
         raise ValueError(
-            "sample_submission.csv must share at least one ID column with test.csv"
+            f"{submission_p.name} must share at least one ID column with {test_p.name}"
         )
 
     targets = [row[target_column] for row in train_rows]
@@ -84,7 +85,8 @@ def inspect_competition_bundle(
         for column in id_columns:
             if test_row[column] != submission_row[column]:
                 raise ValueError(
-                    f"sample_submission.csv ID '{column}' differs from test.csv at row {row_number}"
+                    f"{submission_p.name} ID '{column}' differs from "
+                    f"{test_p.name} at row {row_number}"
                 )
 
     return CompetitionBundleSpec(
@@ -102,10 +104,36 @@ def inspect_competition_bundle(
 def load_test_features(path: str | Path, feature_columns: list[str]):
     import pandas as pd
 
-    frame = pd.read_csv(Path(path))
+    p = Path(path)
+    frame = (
+        pd.read_parquet(p)
+        if p.suffix.casefold() in {".parquet", ".pq"}
+        else pd.read_csv(p)
+    )
     if list(frame.columns) != feature_columns:
-        raise ValueError("test.csv feature schema changed after bundle validation")
+        raise ValueError(f"{p.name} feature schema changed after bundle validation")
     return frame
+
+
+def _read_dataset(path: Path, label: str) -> tuple[list[str], list[dict[str, str]]]:
+    if not path.is_file():
+        raise ValueError(f"{label} does not exist")
+    suffix = path.suffix.casefold()
+    if suffix in {".parquet", ".pq"}:
+        import pandas as pd
+
+        frame = pd.read_parquet(path)
+        headers = [str(c) for c in frame.columns]
+        if not headers:
+            raise ValueError(f"{label} has no header")
+        if len(headers) != len(set(headers)):
+            raise ValueError(f"{label} contains duplicate column names")
+        rows = [
+            {k: str(v) if pd.notna(v) else "" for k, v in row.items()}
+            for row in frame.to_dict(orient="records")
+        ]
+        return headers, rows
+    return _read_csv(path, label)
 
 
 def _read_csv(path: Path, label: str) -> tuple[list[str], list[dict[str, str]]]:

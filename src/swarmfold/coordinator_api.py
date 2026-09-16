@@ -34,6 +34,7 @@ from swarmfold.effectiveness import write_effectiveness_report
 from swarmfold.intake import CompetitionProfile
 from swarmfold.knowledge import merge_knowledge, read_knowledge_snapshot
 from swarmfold.packet_archive import MAX_ARCHIVE_BYTES, extract_and_validate_archive
+from swarmfold.portfolio import PortfolioConfig, single_lane_portfolio
 
 _BEARER = HTTPBearer(auto_error=False)
 _MAX_UI_FILE_BYTES = 512 * 1024 * 1024
@@ -102,9 +103,7 @@ def create_coordinator_app(
     app = FastAPI(title="SwarmFold Coordinator", version="0.1.0")
     app.state.settings = settings
     app.state.store = CoordinatorStore(settings.database_url)
-    app.state.run_manager = run_manager or DashboardRunManager(
-        settings.artifact_root / "ui-runs"
-    )
+    app.state.run_manager = run_manager or DashboardRunManager(settings.artifact_root / "ui-runs")
     app.router.add_event_handler("shutdown", app.state.run_manager.close)
 
     @app.middleware("http")
@@ -190,10 +189,12 @@ def create_coordinator_app(
     async def create_dashboard_run(
         _: Annotated[Principal, Depends(require_admin)],
         files: Annotated[list[UploadFile], File()],
-        max_experiments: Annotated[int, Form(ge=1, le=20)] = 4,
-        max_training_seconds: Annotated[float, Form(gt=0, le=86400)] = 120.0,
+        max_experiments: Annotated[int, Form(ge=5, le=100)] = 5,
+        max_training_seconds: Annotated[float | None, Form(gt=0)] = None,
         iteration_id: Annotated[str, Form(min_length=1, max_length=128)] = "local-iteration",
-        lane_id: Annotated[Literal["ai-a", "ai-b", "ai-c"], Form()] = "ai-a",
+        lane_id: Annotated[Literal["ai-a", "ai-b", "ai-c", "ai-d", "ai-e"], Form()] = "ai-a",
+        lane_configs: Annotated[str | None, Form()] = None,
+        max_concurrent_lanes: Annotated[int, Form(ge=1, le=5)] = 2,
     ) -> dict[str, object]:
         if not files or len(files) > _MAX_UI_FILES:
             raise HTTPException(status_code=422, detail="Upload between 1 and 200 files")
@@ -232,13 +233,19 @@ def create_coordinator_app(
                                 detail="Competition bundle exceeds the 2 GB limit",
                             )
                         handle.write(chunk)
+            if lane_configs:
+                portfolio = PortfolioConfig(
+                    lanes=json.loads(lane_configs),
+                    max_concurrent_lanes=max_concurrent_lanes,
+                )
+            else:
+                portfolio = single_lane_portfolio(lane_id, max_experiments)
             return manager.create_intake(
                 run_id,
                 filenames=filenames,
-                max_experiments=max_experiments,
                 max_training_seconds=max_training_seconds,
                 iteration_id=iteration_id,
-                lane_id=lane_id,
+                portfolio=portfolio,
             )
         except HTTPException:
             shutil.rmtree(directory, ignore_errors=True)
@@ -255,6 +262,18 @@ def create_coordinator_app(
     ) -> dict[str, object]:
         try:
             return _run_manager(app).confirm(run_id, profile.model_dump())
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Dashboard run not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/v1/ui/runs/{run_id}/start", status_code=status.HTTP_202_ACCEPTED)
+    def start_dashboard_training(
+        run_id: str,
+        _: Annotated[Principal, Depends(require_admin)],
+    ) -> dict[str, object]:
+        try:
+            return _run_manager(app).start_training(run_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Dashboard run not found") from exc
         except ValueError as exc:
@@ -307,9 +326,7 @@ def create_coordinator_app(
         snapshot_id = result.get("knowledge_snapshot_id")
         if isinstance(snapshot_id, str):
             snapshot = store.knowledge_snapshot(snapshot_id)
-            result["knowledge_snapshot"] = read_knowledge_snapshot(
-                str(snapshot["artifact_path"])
-            )
+            result["knowledge_snapshot"] = read_knowledge_snapshot(str(snapshot["artifact_path"]))
         else:
             result["knowledge_snapshot"] = None
         return result

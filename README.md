@@ -4,19 +4,32 @@
 
   <p align="center">
     <img src="https://img.shields.io/badge/Stage-Design-blue?style=flat-square" alt="Project stage">
-    <img src="https://img.shields.io/badge/Topology-3_AI_Pods-success?style=flat-square" alt="Three AI pods">
-    <img src="https://img.shields.io/badge/Lanes-6_Default-purple?style=flat-square" alt="Six default lanes">
+    <img src="https://img.shields.io/badge/Topology-5_AI_Lanes-success?style=flat-square" alt="Five AI lanes">
+    <img src="https://img.shields.io/badge/Control-Human_Gated-purple?style=flat-square" alt="Human control plane">
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
   </p>
 
   <p align="center">
-    SwarmFold coordinates three independent end-to-end AI swarms and three human competitors. Every iteration produces six evidence packages, merges their verified findings, and distributes a new knowledge snapshot for the next search cycle.
+    SwarmFold coordinates five behavior-specific AI modeling lanes under one human control plane. Every iteration produces one complete evidence package and a reusable knowledge report for the next search cycle.
   </p>
 </div>
 
 ## Current Status
 
-SwarmFold has completed the Phase 5 first-release implementation. Three authenticated pods and three human lanes publish one of three verified terminal packet types: candidate, failure, or waiver. A six-lane barrier feeds an admin-only submission gate, leaderboard intake, and deterministic knowledge merger. Each completed iteration produces an immutable, hash-verified snapshot that can be assigned to the next iteration. Hardening includes hash-chained access auditing, an auditor-only role, resource metering, record migrations, verified backup restore drills, retention, and evidence-derived swarm-effectiveness reports. The coordinator supports SQLite for local verification and PostgreSQL plus shared MLflow through Docker Compose.
+SwarmFold operates on a production **five-AI local portfolio** topology under human control:
+- **Intake & Modality Guard**: Automatically profiles arbitrary competition bundles (Parquet, CSV, TSV) and blocks unsupported modalities (audio, video, raw images) before training.
+- **Human Confirmation Gate**: Locks the immutable problem contract, target, metric, and validation strategy before compute begins.
+- **Five Specialized AI Modeling Lanes**:
+  - **AI A (Conservative Scientist)**: Stable linear and tree baselines, sanity checks, low-variance models.
+  - **AI B (Boosting Specialist)**: Regularized tree ensembles (HistGBM, LightGBM, XGBoost, CatBoost) and bounded HPO.
+  - **AI C (Feature Scientist)**: Feature engineering, TF-IDF text representations, and ablation studies.
+  - **AI D (Alternative Explorer)**: Prediction diversity, extra trees, and alternative geometric models.
+  - **AI E (Robustness Challenger)**: Seed stability, stress tests, and intra-lane bagging/stacking.
+- **Self-Healing Execution**: Automatic error classification (OOM, invalid parameters, numerical instability), parameter/feature repair, and fold-level checkpoint resumption.
+- **Unified OOF Ensemble Engine**: Reconstructs out-of-fold predictions, validates alignment, evaluates equal-weight and pair-blend ensembles, and gatekeeps adoption against the best single model.
+- **Atomic Full Package**: Every run publishes a self-contained `full-package.zip` with complete lineage, reproduction notebook, manifest hashes, and reusable priors for iteration N+1.
+
+See the complete [Capability Matrix](docs/capability_matrix.md) for current component lifecycle states.
 
 ## Development Quickstart
 
@@ -28,89 +41,67 @@ uv run pytest
 
 The demo executes the local pod from contract inspection through portfolio search, result criticism, evidence verification, and atomic publication. Candidate packets include a fixture submission file plus the complete experiment ledger and findings; failure packets never fabricate a submission. Mock planning does not require an API key.
 
-## Docker dashboard
+## Primary Architecture: Five-AI Local Portfolio
+
+```mermaid
+flowchart TD
+    CB[Uploaded Competition Bundle] --> PR[Intake Profiler & Modality Guard]
+    PR --> HC[Human Confirmation Gate]
+    HC --> FC[Frozen Immutable Contracts]
+    FC --> TP[Autonomous Technique Planner & Literature Retrieval]
+    TP --> VS[Automatic Trait-Based Splitter & Leakage Audit]
+    VS --> FE[Fold-Safe Feature Pipeline & Ablation]
+    FE --> PA[Five-AI Portfolio Allocator]
+    PA --> AA[AI A: Conservative Scientist]
+    PA --> AB[AI B: Boosting Specialist]
+    PA --> AC[AI C: Feature Scientist]
+    PA --> AD[AI D: Alternative Explorer]
+    PA --> AE[AI E: Robustness Challenger]
+    AA --> SH[Self-Healing Runtime & Fold Checkpoints]
+    AB --> SH
+    AC --> SH
+    AD --> SH
+    AE --> SH
+    SH --> PRG[Unified OOF Prediction Registry & Alignment]
+    PRG --> OE[Unified Ensemble Engine & Champion Gate]
+    OE --> EP[Atomic Full Package Publisher]
+    EP --> PKG[full-package.zip, Verification & Priors N+1]
+```
+
+## Control Room Dashboard & Verification CLI
 
 The coordinator serves a local-first experiment dashboard at `http://localhost:8000`.
-Upload the complete competition bundle rather than selecting a target manually. File
-names are not prescribed: the configured LLM profiles each file from its format,
-schema, bounded samples, and the uploaded Markdown brief. The dashboard presents the
-inferred task, file roles, target, metric, validation plan, submission shape,
-ambiguities, and confidence for human confirmation. Training cannot start until the
-confirmed profile has no blockers or unanswered questions.
 
-Every accepted bundle run publishes a downloadable `end-to-end.ipynb`. It reconstructs
-the confirmed inputs, data-quality checks, leakage-safe split, selected experiment,
-held-out evaluation, full-data refit, template-preserving submission, saved model, and
-reproduction metadata. The generated notebook is intentionally marked unexecuted;
-recorded metrics remain traceable to the verified run evidence until the notebook is
-rerun in its target environment.
-
-The intake profiler understands arbitrary competition layouts and records unsupported
-formats without pretending they can run. The built-in execution adapter supports CSV
-binary classification with mixed numeric and categorical features, string or numeric
-class labels, and accuracy or ROC-AUC evaluation. It requires one training source, one
-inference source, and one submission template. Unknown categories are handled inside a
-fold-safe preprocessing pipeline. Other task profiles stop at the confirmation gate and
-identify the adapter that is still required. Each blocker and question needs a recorded
-human resolution before confirmation. The browser never receives the provider API key
-and keeps the coordinator token in session storage only for the lifetime of the current
-tab.
-
-Configure `.env`, then start the dashboard, PostgreSQL, and MLflow:
+### Capability Matrix and Package Verification Tools
 
 ```bash
-docker compose up --build -d
+# Display the capability matrix across all models, features, validation splitters, and tasks
+uv run swarmfold capability-matrix
+
+# Export the matrix in JSON format
+uv run swarmfold capability-matrix --format json
+
+# Programmatically verify integrity, relative paths, file presence, and secret absence
+uv run swarmfold verify-package path/to/full-package.zip
 ```
 
-Open `http://localhost:8000`, then sign in with the value of
-`SWARMFOLD_COORDINATOR_TOKEN` from `.env`. For a model gateway running on the Docker
-host, set `SWARMFOLD_DOCKER_OPENAI_BASE_URL`; Docker Desktop normally uses
-`http://host.docker.internal:20129/v1`. Dashboard experiment artifacts persist in the
-shared Docker volume.
+### Full Package Contents
 
-Bound the local search by run count and training time:
+Every portfolio run publishes one `full-package.zip` containing:
+1. `competition-bundle/`: Original competition files and Markdown brief.
+2. `contracts.json` & `data-fingerprints.json`: Immutable task definitions and input data hashes.
+3. `experiments/{lane_id}/`: Lane result packets, fold checkpoints, and experiment notebooks.
+4. `experiment-ledger.jsonl` & `findings.jsonl`: Complete consolidated trial ledger.
+5. `literature-review.json` & `technique-evidence.json`: Retrieved research and technique evidence.
+6. `validation-audit.json`: Leakage and split consistency audit report.
+7. `ensemble-assessment.json` & `ensemble_spec.json`: Correlation matrix, blend weights, and gate decision.
+8. `end-to-end.ipynb` & `submission.csv`: Unexecuted reproduction notebook and final submission.
+9. `experiment-knowledge.md`: Reusable lessons, hypothesis verdicts, and priors for iteration N+1.
+10. `environment-lock.json` & `manifest.json`: Runtime versions and SHA-256 hashes for all files.
 
-```bash
-uv run swarmfold run-demo --max-experiments 4 --max-training-seconds 120
-```
+## Distributed Compatibility Mode (Three Laptops + Three Humans)
 
-Give a run a stable thread ID so an interrupted process can continue from its durable SQLite checkpoint:
-
-```bash
-uv run swarmfold run-demo --thread-id local-pod-1
-uv run swarmfold run-demo --thread-id local-pod-1 --resume
-```
-
-Every published packet is schema-checked and hash-verified before it becomes visible. It can also be validated independently later:
-
-```bash
-uv run swarmfold validate-packet .swarmfold/packets/<run-id>/candidate-packet
-```
-
-To use an OpenAI-backed planner, install the provider integration, configure the model and API key outside Git, and select live mode:
-
-```bash
-uv sync --extra dev --extra openai
-export SWARMFOLD_MODEL=openai:replace-with-model-name
-export OPENAI_API_KEY=replace-locally
-uv run swarmfold run-demo --planner live
-```
-
-On PowerShell, use `$env:NAME = "value"` instead of `export`. Anthropic and Gemini integrations are available through the `anthropic` and `gemini` extras.
-
-## Core Idea
-
-Each of three laptops runs a complete autonomous data science pod that attempts to produce one candidate:
-
-```text
-problem formulation -> leakage-safe validation -> data and literature research
--> feature and model portfolio -> deterministic experiments -> ensemble assessment
--> robustness evidence -> verification -> submission candidate
-```
-
-Three team members independently produce three additional human-led candidates. The six lanes synchronize only after the iteration ends, preserving search diversity while allowing every verified success and failure to improve the next iteration.
-
-## System Shape
+For teams deploying across multiple distributed physical machines, SwarmFold maintains an authenticated **Distributed Compatibility Mode**:
 
 ```mermaid
 flowchart TD
@@ -130,6 +121,8 @@ flowchart TD
     G --> M[Knowledge Merger]
     M --> N[Knowledge Snapshot N+1]
 ```
+
+In this mode, three physical laptops run independent pods alongside three human participants. Each lane synchronizes via the coordinator API at the iteration barrier before knowledge merging.
 
 ## Design Priorities
 

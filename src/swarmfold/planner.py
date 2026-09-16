@@ -6,8 +6,9 @@ from typing import Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from swarmfold.config import PlannerSettings
-from swarmfold.data import load_classification_csv
+from swarmfold.data import load_training_csv
 from swarmfold.prompts import PLANNER_PROMPT, render_planner_prompt
+from swarmfold.retrieval import TechniqueRetriever
 from swarmfold.schemas import ContractBundle, ExperimentProposal, ExperimentState
 
 
@@ -18,6 +19,10 @@ class PlannerSuggestion(BaseModel):
         min_length=10,
         description="A testable mechanism explaining why the baseline could be useful.",
     )
+    technique_card_id: str | None = Field(
+        default=None,
+        description="The card_id of the retrieved technique card backing this proposal.",
+    )
 
 
 class ProposalPlanner(Protocol):
@@ -26,9 +31,14 @@ class ProposalPlanner(Protocol):
 
 class DeterministicPlanner:
     def propose(self, state: ExperimentState) -> ExperimentProposal:
+        retriever = TechniqueRetriever()
+        task_type = state.get("problem_formulation", {}).get("task_type", "binary_classification")
+        cards = retriever.retrieve(role="model_scout", task_type=task_type, top_k=1)
+        card_mention = f" [{cards[0].card_id}]" if cards else ""
         return _proposal_from_state(
             state,
-            "A fold-safe mixed-feature baseline can establish a reproducible score floor.",
+            "A fold-safe mixed-feature baseline"
+            f"{card_mention} can establish a reproducible score floor.",
         )
 
 
@@ -42,12 +52,23 @@ class LangChainPlanner:
         self.model_factory = model_factory
 
     def propose(self, state: ExperimentState) -> ExperimentProposal:
-        features, target = load_classification_csv(
-            state["dataset_path"], state.get("target_column", "target")
+        task_type = state.get("problem_formulation", {}).get("task_type", "binary_classification")
+        features, target = load_training_csv(
+            state["dataset_path"], state.get("target_column", "target"), task_type
         )
         if self.model_factory is None:
             _validate_provider_credentials(self.model_name)
         factory = self.model_factory or _init_chat_model
+
+        retriever = TechniqueRetriever()
+        cards = retriever.retrieve(
+            role="model_scout",
+            task_type=task_type,
+            query=state.get("project_context", ""),
+            top_k=3,
+        )
+        retrieved_techniques = retriever.format_for_prompt(cards)
+
         try:
             model = factory(self.model_name)
             structured_model = model.with_structured_output(PlannerSuggestion)  # type: ignore[attr-defined]
@@ -57,6 +78,7 @@ class LangChainPlanner:
                     features=features.shape[1],
                     classes=len(set(target.tolist())),
                     project_context=state.get("project_context", "Not provided."),
+                    retrieved_techniques=retrieved_techniques,
                 )
             )
         except Exception as exc:

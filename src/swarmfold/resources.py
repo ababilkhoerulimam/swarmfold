@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from threading import BoundedSemaphore, Event, Lock, Thread
@@ -29,7 +30,9 @@ class TrainingResourcePool:
                     self._active -= 1
 
 
-LOCAL_TRAINING_POOL = TrainingResourcePool(max_concurrent=1)
+LOCAL_TRAINING_POOL = TrainingResourcePool(
+    max_concurrent=int(os.getenv("SWARMFOLD_MAX_CONCURRENT_TRAINING", "2"))
+)
 
 
 class ProcessResourceMeter:

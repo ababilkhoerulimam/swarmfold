@@ -5,12 +5,12 @@
 | Field | Value |
 |---|---|
 | Project | SwarmFold |
-| Stage | Design |
-| Primary use | Team-based data science competitions |
-| Team topology | Three people, three laptops |
-| AI topology | One autonomous end-to-end pod per laptop |
-| Human topology | One manual submission lane per person |
-| Iteration output | Six terminal lane packets, with up to three AI and three human candidates |
+| Stage | Five-AI portfolio implementation |
+| Primary use | Local-first and distributed data science competitions |
+| Team topology | One human control plane with optional distributed workers |
+| AI topology | Five behavior-specific modeling lanes, individually enabled |
+| Human topology | Confirmation and submission gates, not mandatory modeling lanes |
+| Iteration output | One full package containing every enabled AI lane |
 | Orchestration target | LangGraph with LangChain agents |
 
 This document defines the intended system. A component described here must not be presented as implemented until code, tests, and runtime evidence exist in the repository.
@@ -24,30 +24,32 @@ This document defines the intended system. A component described here must not b
 | Machine-readable schemas | Initial Day 1 experiment schemas implemented |
 | Python package and CLI | Initial LangGraph demo implemented |
 | Coordinator and pod runtime | Phase 5 first-release implementation complete |
-| Tests and fixture competition | Six-lane, migration, audit, backup, and failure tests implemented |
+| Tests and fixture competition | Five-AI portfolio plus legacy coordinator tests implemented |
 | MLflow and PostgreSQL deployment | Shared Compose deployment configured; live Docker runtime verification pending |
-| Human and knowledge workflow | Human packets, submission gate, leaderboard intake, and snapshots implemented |
+| Human and knowledge workflow | Confirmation, submission gate, prior-package memory, and snapshots implemented |
 | Operational hardening | Access audit, resource accounting, migration, retention, DR verification, and effectiveness reports implemented |
 | Competition integration | Human-controlled result intake implemented; direct competition upload intentionally excluded |
 
 ## Purpose
 
-SwarmFold coordinates parallel AI and human experimentation for data science competitions. It is designed for a team of three people, each using one laptop. Every laptop runs an independent swarm of specialized agents that attempts the full competition pipeline. Each person also attempts one manual candidate. At the end of an iteration, every lane publishes one verified terminal packet: a candidate, failure, or waiver. A knowledge merger reconciles their results and produces the shared input for the next iteration.
+SwarmFold coordinates parallel AI and human experimentation for data science competitions. The primary topology is a five-AI local portfolio operating under one human control plane on a single machine, with an authenticated three-AI plus three-human distributed coordinator retained as a compatibility mode. Every enabled lane attempts the full competition pipeline under an immutable validation contract. At the end of an iteration, every lane publishes one verified terminal packet: a candidate, failure, or waiver. The ensemble engine and knowledge merger reconcile results, evaluate ensembling against the best single model, and produce an atomic full-package zip and reusable priors for the next iteration.
 
-The objective is to improve leaderboard performance through search diversity, reproducible experiments, explicit validation, and cumulative knowledge. Agent count is not treated as a quality measure. A result becomes trusted only when deterministic execution and recorded artifacts support it. The six-lane default gives each team member one AI lane and one human lane; deployments may configure a different lane count.
+The objective is to improve leaderboard performance through search diversity, reproducible experiments, explicit validation, and cumulative knowledge. Agent count is not treated as a quality measure. A result becomes trusted only when deterministic execution and recorded artifacts support it. The local dashboard defaults to the five-AI portfolio; the distributed coordinator retains the earlier six-lane topology as a compatibility mode.
+
+The local dashboard uses five AI modeling lanes and one human control plane as its default topology. AI A through AI E have distinct model-search charters and can be enabled individually. Bundle profiling and human confirmation happen once, enabled lanes share the same validation contract, and one start action fans out the portfolio. The earlier three-AI plus three-human coordinator topology remains accepted for compatibility with distributed deployments and existing evidence snapshots.
 
 ## Objectives
 
-1. Run three autonomous end-to-end AI pods on three separate laptops.
-2. Preserve three independent human-led solution lanes.
-3. Produce up to six valid submission candidates per iteration, subject to competition rules and quota.
+1. Run five specialized AI modeling lanes (Conservative, Boosting, Feature, Alternative, Robustness) under one human control plane on a single machine.
+2. Provide distributed compatibility mode supporting three autonomous AI pods across separate laptops with three independent human lanes.
+3. Produce valid submission candidates per iteration, subject to competition rules and quota.
 4. Compare all candidates under one immutable validation contract.
 5. Prevent duplicate experiments across laptops and iterations.
 6. Record successful, failed, conflicting, and unverified findings.
 7. Require executable evidence for model, metric, data, and API claims.
 8. Explore model families appropriate to the problem instead of stopping at common gradient-boosted trees.
 9. Preserve prediction diversity for later blending and stacking.
-10. Convert each completed iteration into a versioned knowledge snapshot.
+10. Convert each completed iteration into a versioned knowledge snapshot and atomic full-package archive.
 
 ## Non-Objectives
 
@@ -103,6 +105,33 @@ Humans approve competition submissions, changes to validation policy, external d
 
 ## High-Level Architecture
 
+### Primary Architecture: Five-AI Local Portfolio
+
+```mermaid
+flowchart TD
+    CB[Uploaded Competition Bundle] --> PR[Intake Profiler & Modality Guard]
+    PR --> HC[Human Confirmation Gate]
+    HC --> FC[Frozen Immutable Contracts]
+    FC --> PA[Five-AI Portfolio Allocator]
+    PA --> AA[AI A: Conservative Scientist]
+    PA --> AB[AI B: Boosting Specialist]
+    PA --> AC[AI C: Feature Scientist]
+    PA --> AD[AI D: Alternative Explorer]
+    PA --> AE[AI E: Robustness Challenger]
+    AA --> PRG[Prediction Registry & Alignment]
+    AB --> PRG
+    AC --> PRG
+    AD --> PRG
+    AE --> PRG
+    PRG --> OE[Unified OOF Ensemble Engine]
+    OE --> EP[Full Package Publisher]
+    EP --> PKG[full-package.zip & Knowledge Priors N+1]
+```
+
+### Distributed Compatibility Mode (Three Laptops + Three Humans)
+
+For teams deploying across multiple distributed physical machines, SwarmFold retains its authenticated multi-agent coordinator topology:
+
 ```mermaid
 flowchart TD
     KS[Immutable Knowledge Snapshot] --> PA[Portfolio Allocator]
@@ -137,7 +166,7 @@ flowchart TD
 
 ### Coordinator services
 
-One team-selected machine hosts the shared control services. Hosting does not change that machine's AI pod into a partial pipeline. Coordinator services receive reserved CPU, memory, storage, and network capacity so local training cannot starve shared state. The services may later move to another machine without changing pod semantics.
+One team-selected machine hosts the shared control services when running in distributed compatibility mode. Hosting does not change that machine's AI pod into a partial pipeline. Coordinator services receive reserved CPU, memory, storage, and network capacity so local training cannot starve shared state. The services may later move to another machine without changing pod semantics.
 
 Planned services:
 
@@ -160,11 +189,25 @@ Each laptop runs:
 
 ### Connectivity
 
-The three laptops need authenticated network access to the coordinator API and MLflow server. If connectivity is interrupted, the local graph should retain its checkpoint and publish completed records after reconnection. Credentials must remain outside prompts, logs, source control, and knowledge packets.
+The distributed laptops need authenticated network access to the coordinator API and MLflow server. If connectivity is interrupted, the local graph should retain its checkpoint and publish completed records after reconnection. Credentials must remain outside prompts, logs, source control, and knowledge packets.
 
-## Six-Lane Portfolio
+## Portfolio Topologies
 
-The default iteration contains six lanes:
+### Primary Topology: Five-AI Local Portfolio
+
+The primary local iteration contains five AI modeling lanes under a single human control plane:
+
+| Lane | Charter | Specialization & Focus |
+|---|---|---|
+| AI-A | Conservative Scientist | Stable linear and tree baselines, sanity checks, low-variance models |
+| AI-B | Boosting Specialist | Regularized tree ensembles (HistGBM, LightGBM, XGBoost, CatBoost), bounded HPO |
+| AI-C | Feature Scientist | Feature engineering, interactions, frequency/target encodings, TF-IDF representations, ablation studies |
+| AI-D | Alternative Explorer | Prediction diversity, Extra Trees, alternative geometric/distance-based models |
+| AI-E | Robustness Challenger | Seed stability, perturbation stress tests, intra-lane bagging/stacking |
+
+### Distributed Compatibility Mode: Six-Lane Pods
+
+For distributed multi-machine deployments, SwarmFold maintains the legacy six-lane topology:
 
 | Lane | Default charter |
 |---|---|
@@ -175,7 +218,7 @@ The default iteration contains six lanes:
 | Human-2 | Independent feature and model design |
 | Human-3 | Challenger, ablation, or manual blend |
 
-These are defaults. The Portfolio Allocator may rotate charters after reading the latest knowledge snapshot. It must record why each charter was assigned and how it differs from the other lanes. Before launch, the allocator compares each charter's target mechanism, feature family, model family, risk level, and expected prediction diversity. Duplicate charters are merged or reassigned unless a deliberate replication has been recorded.
+These are defaults. In distributed mode, the Portfolio Allocator may rotate charters after reading the latest knowledge snapshot. It must record why each charter was assigned and how it differs from the other lanes. Before launch, the allocator compares each charter's target mechanism, feature family, model family, risk level, and expected prediction diversity. Duplicate charters are merged or reassigned unless a deliberate replication has been recorded.
 
 Lanes remain isolated during the active search period. They may share frozen contracts and baseline utilities, but they do not consume another lane's unfinished conclusions. Synchronization happens at the iteration barrier.
 
@@ -200,7 +243,7 @@ Each laptop runs eighteen logical agent roles. Logical roles do not imply eighte
 | Model Engineer | Implements approved model configurations | Tested model changes |
 | Experiment Runner | Executes deterministic training functions | MLflow runs and artifacts |
 | Result Critic | Challenges metrics, stability, and interpretation | Critique and next hypotheses |
-| OOF Ensemble Scientist | Measures prediction diversity and accepts an ensemble only when it beats the best eligible base candidate | Ensemble eligibility, similarity, gain, and decision |
+| OOF Ensemble Scientist | Measures prediction diversity, evaluates voting, bagging, stacking, and OOF-weighted blends, then reports ensemble gain honestly | Ensemble eligibility, similarity, weights, gain, and decision |
 | Robustness and Uncertainty Agent | Quantifies sampling uncertainty and records missing fold or seed stability evidence | Confidence interval and explicit limitations |
 | Evidence Verifier | Verifies claims against code and artifacts | Accept, reject, or unverified verdict |
 
@@ -210,28 +253,36 @@ The Submission Auditor is a deterministic supervisor phase using the Validation 
 
 ```mermaid
 flowchart TD
-    START[Uploaded Bundle] --> RULES[Rules Agent]
-    RULES --> FORM[Problem Formulation Agent]
-    FORM --> DATA[Data Contract Agent]
-    DATA --> VALID[Validation Agent]
-    VALID --> LEAK[Temporal Validation and Leakage Auditor]
-    LEAK --> EDA[EDA Agent]
-    EDA --> DOMAIN[Domain Target Decomposition Agent]
-    DOMAIN --> RESEARCH[Literature Research Agent]
-    RESEARCH --> SCOUT[Model Scout]
-    SCOUT --> PLAN[Portfolio Planner]
-    PLAN --> QUEUE[Ranked Experiment Queue]
-    QUEUE --> BUILD[Feature and Model Engineers]
-    BUILD --> PRE[Preflight Verification]
-    PRE -->|Rejected| QUEUE
-    PRE -->|Accepted| RUN[Experiment Runner]
-    RUN --> CRITIC[Result Critic]
-    CRITIC -->|Budget and useful hypothesis remain| QUEUE
-    CRITIC -->|Stop| ENSEMBLE[OOF Ensemble Scientist]
-    ENSEMBLE --> ROBUST[Robustness and Uncertainty Agent]
-    ROBUST --> VERIFY[Evidence Verifier]
-    VERIFY --> AUDIT[Submission Audit]
-    AUDIT --> PACKET[Publish Submission Packet]
+    START[Uploaded Competition Bundle] --> MODALITY[Intake Profiler & Modality Guard]
+    MODALITY --> CONFIRM[Human Confirmation Gate]
+    CONFIRM --> CONTRACTS[Frozen Immutable Contracts]
+    CONTRACTS --> KNOWLEDGE[Autonomous Technique Planner & Research Engine]
+    KNOWLEDGE --> AUTOVAL[Automated Trait-Based Validation Splitter]
+    AUTOVAL --> LEAKAUDIT[Leakage & Split Integrity Auditor]
+    LEAKAUDIT --> FEATAB[Fold-Safe Feature Pipeline & Ablation Suite]
+    FEATAB --> LANES[Five-AI Parallel Portfolio Search]
+
+    subgraph LANES[Five-AI Parallel Portfolio Search]
+        AIA[AI-A: Conservative Scientist]
+        AIB[AI-B: Boosting Specialist]
+        AIC[AI-C: Feature Scientist]
+        AID[AI-D: Alternative Explorer]
+        AIE[AI-E: Robustness Challenger]
+    end
+
+    LANES --> HEALING[Self-Healing & Fold Checkpoint Engine]
+    HEALING -->|OOM / Parameter Error| REPAIR[Parameter & Feature Auto-Repair]
+    REPAIR -->|Resumed Checkpoint| HEALING
+    HEALING --> REGISTRY[Unified OOF Prediction Registry]
+    REGISTRY --> DIVERSITY[Prediction Diversity & Alignment Audit]
+    DIVERSITY --> ENSEMBLE[Unified Ensemble Factory]
+    ENSEMBLE -->|Gate: Outperforms Best Single?| DECISION{Ensemble Adopted?}
+    DECISION -->|Yes| BLEND[Blend / Soft Voting Submission]
+    DECISION -->|No| CHAMP[Single Champion Submission]
+    BLEND --> PACKAGE[Atomic Full Package Publisher]
+    CHAMP --> PACKAGE
+    PACKAGE --> VERIFIER[Programmatic Package Verifier]
+    VERIFIER --> ENDPKG[full-package.zip & Iteration N+1 Priors]
 ```
 
 ## Experiment Lifecycle
@@ -722,7 +773,7 @@ The planned agent prompts may use the following skills from the companion skill 
 | `iterate-modeling` | Bounded comparison of approved model and feature candidates |
 | `code-review` | Review of generated implementation changes |
 | `notebook-review` | Static audit and explicit clean-kernel reproduction |
-| `ds-project-memory` | Six-lane packet reconciliation and knowledge snapshot production |
+| `ds-project-memory` | Multi-lane packet reconciliation, full package publisher, and knowledge snapshot production |
 | `document-notebook` | Final notebook explanation and documentation |
 | `human-writing` | Final report revision |
 | `model-delivery` | Optional packaging when the selected model is used outside the competition |
@@ -823,6 +874,24 @@ Agent count should be reduced when additional agents increase cost without impro
 
 The Phase 1 result is the developer MVP. The team MVP requires Phases 1 through 4 plus minimum authentication, credential isolation, role-scoped tools, idempotent publication, and backup. Phase 5 adds broader operational hardening.
 
+### Five-AI dashboard portfolio delivery
+
+| Phase | Delivered behavior | Exit evidence |
+|---|---|---|
+| 1. Portfolio contract | AI A through AI E configuration, enable toggles, per-lane budgets, total hard cap | Invalid, duplicate, empty, and oversized portfolios are rejected before training |
+| 2. Shared intake gate | One bundle analysis, one editable profile, blocker resolution, separate confirmation and training actions | No lane starts before the confirmed shared contract is execution-ready |
+| 3. Multi-lane runtime | Independent lane threads, output folders, statuses, and bounded parallel execution | Only enabled lanes execute and every result remains attributable to its lane |
+| 4. Evidence aggregation | Mandatory cross-lane OOF ensemble and one complete ZIP with bundle, packets, ledger, findings, literature, notebook, submission, manifest, and knowledge Markdown | The final submission uses an aligned OOF-selected ensemble and records whether it improved over the strongest single model |
+| 5. Control-room UI and hardening | Five configuration cards, live lane rail, one start action, one full-package download, Docker limits, and regression tests | UI and API expose one coherent portfolio session without separate artifact buttons |
+
+The default dashboard target is five experiments per enabled lane, or 25 total. Five is
+also the per-lane minimum so every lane can evaluate an ensemble candidate. The UI allows
+up to 100 per lane, while the server limits the portfolio to 200 by default through
+`SWARMFOLD_MAX_PORTFOLIO_EXPERIMENTS`. `SWARMFOLD_MAX_CONCURRENT_TRAINING` independently
+caps simultaneous model fitting. Dashboard lanes have no elapsed-time cutoff. They continue
+until the configured experiment target is exhausted or an unrecoverable experiment error
+prevents the lane from producing further valid evidence.
+
 ### Phase 1: Single-laptop vertical slice
 
 Implement one pod with:
@@ -846,7 +915,7 @@ Exit criteria:
 Add:
 
 - LangGraph routing and checkpointing.
-- Thirteen logical roles.
+- Nineteen logical roles, including experiment memory and shared evidence specialists.
 - Experiment queue and budget enforcement.
 - Result critic loop.
 - Model coverage and ensemble gates.
@@ -884,12 +953,12 @@ Add:
 - Human packet publishing.
 - Submission approval interface.
 - Leaderboard result intake.
-- Six-lane knowledge merger.
-- Versioned knowledge snapshots.
+- Multi-lane knowledge merger and ensemble engine.
+- Versioned knowledge snapshots and atomic full-package archive.
 
 Exit criteria:
 
-- Three AI and three human packets can be reconciled.
+- Multi-lane AI and human packets can be reconciled.
 - Failures and contradictions are preserved.
 - The next iteration consumes the newly published snapshot.
 
@@ -915,7 +984,7 @@ SwarmFold reaches a usable first release when:
 5. The system detects a deliberately leaked validation transform.
 6. Experiment IDs remain unique across laptops and retries.
 7. A stopped pod resumes without repeating completed training.
-8. Six verified terminal lane packets trigger the post-barrier workflow; the knowledge merger runs after the declared leaderboard intake cutoff or immediately when no upload result is expected.
+8. Verified terminal lane packets trigger the post-barrier workflow; the knowledge merger runs after the declared leaderboard intake cutoff or immediately when no upload result is expected.
 9. The merger preserves accepted, rejected, leaderboard-only, and conflicting evidence.
 10. A new immutable knowledge snapshot can start the next iteration.
 

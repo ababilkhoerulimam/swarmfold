@@ -83,10 +83,9 @@ def validate_knowledge_snapshot(snapshot_path: str | Path) -> dict[str, object]:
     if not isinstance(raw_manifest, dict):
         raise ValueError("Knowledge snapshot manifest must be an object")
     manifest = migrate_record("knowledge_snapshot", raw_manifest)
-    if (
-        manifest.get("snapshot_id") != completion.get("snapshot_id")
-        or manifest.get("source_iteration_id") != completion.get("source_iteration_id")
-    ):
+    if manifest.get("snapshot_id") != completion.get("snapshot_id") or manifest.get(
+        "source_iteration_id"
+    ) != completion.get("source_iteration_id"):
         raise ValueError("Knowledge snapshot completion identity mismatch")
     for record in manifest.get("files", []):
         name = record.get("name", "")
@@ -152,9 +151,7 @@ def _build_snapshot(
         ):
             raise ValueError("Packet identity or contracts do not match the iteration")
         local_score = (
-            manifest.metrics.get("accuracy")
-            if isinstance(manifest, CandidateManifest)
-            else None
+            manifest.metrics.get("accuracy") if isinstance(manifest, CandidateManifest) else None
         )
         decision = decision_by_lane.get(lane_id)
         leaderboard = leaderboard_by_lane.get(lane_id)
@@ -378,9 +375,7 @@ def _validate_finding_provenance(
         allowed_runs.update(manifest.completed_run_ids)
     if not set(finding.source_runs).issubset(allowed_runs):
         raise ValueError("Finding references a run outside its verified packet")
-    allowed_artifacts = {
-        artifact.path for artifact in getattr(manifest, "artifacts", [])
-    }
+    allowed_artifacts = {artifact.path for artifact in getattr(manifest, "artifacts", [])}
     if not set(finding.artifact_uris).issubset(allowed_artifacts):
         raise ValueError("Finding references an artifact outside its verified packet")
 
@@ -431,9 +426,7 @@ def _reconcile_findings(
     for group in groups.values():
         lanes = {item.source_lane for item in group}
         supported = [
-            item
-            for item in group
-            if item.status in {"OBSERVED", "VALIDATED", "CROSS_LANE"}
+            item for item in group if item.status in {"OBSERVED", "VALIDATED", "CROSS_LANE"}
         ]
         opposed = [item for item in group if item.status == "REJECTED"]
         if supported and opposed:

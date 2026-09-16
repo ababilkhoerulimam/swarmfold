@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -23,9 +24,7 @@ def test_dashboard_serves_control_room_and_redacts_provider_key(
     monkeypatch.setenv("SWARMFOLD_MODEL", "openai:agy/gemini-3.8-flash-high")
     app = _app(
         tmp_path,
-        DashboardRunManager(
-            tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler()
-        ),
+        DashboardRunManager(tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler()),
     )
 
     with TestClient(app) as client:
@@ -49,9 +48,7 @@ def test_dashboard_serves_control_room_and_redacts_provider_key(
 
 
 def test_dashboard_profiles_then_requires_confirmation_before_training(tmp_path: Path) -> None:
-    manager = DashboardRunManager(
-        tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler()
-    )
+    manager = DashboardRunManager(tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler())
     app = _app(tmp_path, manager)
 
     fixture_root = Path(__file__).parent / "fixtures"
@@ -72,7 +69,7 @@ def test_dashboard_profiles_then_requires_confirmation_before_training(tmp_path:
                 "/v1/ui/runs",
                 headers=_auth(),
                 data={
-                    "max_experiments": "2",
+                    "max_experiments": "5",
                     "max_training_seconds": "30",
                     "iteration_id": "ui-test",
                     "lane_id": "ai-b",
@@ -92,6 +89,12 @@ def test_dashboard_profiles_then_requires_confirmation_before_training(tmp_path:
                 json=profiled["profile"],
             )
             assert confirmed.status_code == 202, confirmed.text
+            assert confirmed.json()["status"] == "READY_TO_TRAIN"
+            started = client.post(
+                f"/v1/ui/runs/{run_id}/start",
+                headers=_auth(),
+            )
+            assert started.status_code == 202, started.text
             manager.wait(run_id, timeout=3)
             record = client.get(f"/v1/ui/runs/{run_id}", headers=_auth()).json()
 
@@ -99,12 +102,17 @@ def test_dashboard_profiles_then_requires_confirmation_before_training(tmp_path:
             assert record["target_column"] == "outcome"
             assert record["lane_id"] == "ai-b"
             assert record["experiments"][0]["accuracy"] == 0.75
+            assert record["full_package"]["path"].endswith("full-package.zip")
+            assert (tmp_path / "runs" / run_id / "full-package.zip").is_file()
             assert (tmp_path / "runs" / run_id / "status.json").is_file()
             listing = client.get("/v1/ui/runs", headers=_auth()).json()
             assert [item["run_id"] for item in listing] == [run_id]
-            assert client.get(
-                f"/v1/ui/runs/{run_id}/artifacts/unknown.txt", headers=_auth()
-            ).status_code == 404
+            assert (
+                client.get(
+                    f"/v1/ui/runs/{run_id}/artifacts/unknown.txt", headers=_auth()
+                ).status_code
+                == 404
+            )
     finally:
         for handle in handles:
             handle.close()
@@ -165,12 +173,58 @@ def test_dashboard_requires_a_recorded_resolution_for_each_issue(tmp_path: Path)
     app.state.store.dispose()
 
 
+def test_dashboard_runs_selected_ai_lanes_as_one_portfolio(tmp_path: Path) -> None:
+    manager = DashboardRunManager(tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler())
+    app = _app(tmp_path, manager)
+    fixture_root = Path(__file__).parent / "fixtures"
+    specs = [
+        ("observations.csv", fixture_root / "bundle_learn.csv", "text/csv"),
+        ("future_rows.csv", fixture_root / "bundle_score.csv", "text/csv"),
+        ("answer_shape.csv", fixture_root / "bundle_template.csv", "text/csv"),
+        ("competition.md", fixture_root / "bundle_brief.md", "text/markdown"),
+    ]
+    handles = [path.open("rb") for _, path, _ in specs]
+    lanes = [
+        {"lane_id": lane_id, "enabled": lane_id in {"ai-a", "ai-d"}, "max_experiments": 5}
+        for lane_id in ("ai-a", "ai-b", "ai-c", "ai-d", "ai-e")
+    ]
+    try:
+        uploads = [
+            ("files", (name, handle, content_type))
+            for (name, _, content_type), handle in zip(specs, handles, strict=True)
+        ]
+        with TestClient(app) as client:
+            response = client.post(
+                "/v1/ui/runs",
+                headers=_auth(),
+                data={
+                    "lane_configs": json.dumps(lanes),
+                    "max_concurrent_lanes": "2",
+                    "iteration_id": "portfolio-test",
+                },
+                files=uploads,
+            )
+            run_id = response.json()["run_id"]
+            profiled = manager.wait(run_id, timeout=3)
+            client.post(f"/v1/ui/runs/{run_id}/confirm", headers=_auth(), json=profiled["profile"])
+            client.post(f"/v1/ui/runs/{run_id}/start", headers=_auth())
+            result = manager.wait(run_id, timeout=5)
+
+        assert result["status"] == "ACCEPTED"
+        assert {item["lane_id"] for item in result["experiments"]} == {"ai-a", "ai-d"}
+        assert {item["status"] for item in result["lanes"] if item["enabled"]} == {"ACCEPTED"}
+        assert result["max_experiments"] == 10
+        assert Path(result["full_package"]["path"]).is_file()
+    finally:
+        for handle in handles:
+            handle.close()
+    app.state.store.dispose()
+
+
 def test_dashboard_rejects_invalid_dataset_before_queueing(tmp_path: Path) -> None:
     app = _app(
         tmp_path,
-        DashboardRunManager(
-            tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler()
-        ),
+        DashboardRunManager(tmp_path / "runs", runner=_fake_runner, profiler=_FakeProfiler()),
     )
     with TestClient(app) as client:
         response = client.post(

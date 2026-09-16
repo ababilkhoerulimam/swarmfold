@@ -163,9 +163,7 @@ class CoordinatorStore:
         metadata.create_all(self.engine)
         with self.engine.begin() as connection:
             head = connection.execute(
-                select(audit_chain_state.c.chain_id).where(
-                    audit_chain_state.c.chain_id == "global"
-                )
+                select(audit_chain_state.c.chain_id).where(audit_chain_state.c.chain_id == "global")
             ).scalar_one_or_none()
             if head is None:
                 connection.execute(
@@ -205,11 +203,15 @@ class CoordinatorStore:
                     .scalars()
                     .all()
                 )
-                settings = connection.execute(
-                    select(iteration_settings).where(
-                        iteration_settings.c.iteration_id == value.iteration_id
+                settings = (
+                    connection.execute(
+                        select(iteration_settings).where(
+                            iteration_settings.c.iteration_id == value.iteration_id
+                        )
                     )
-                ).mappings().one()
+                    .mappings()
+                    .one()
+                )
                 same = (
                     existing["contract_sha256"] == contract_sha256
                     and existing["contract_json"] == contract_json
@@ -268,11 +270,15 @@ class CoordinatorStore:
                 .where(lane_charters.c.iteration_id == iteration_id)
                 .order_by(lane_charters.c.lane_id)
             ).scalars()
-            settings = connection.execute(
-                select(iteration_settings).where(
-                    iteration_settings.c.iteration_id == iteration_id
+            settings = (
+                connection.execute(
+                    select(iteration_settings).where(
+                        iteration_settings.c.iteration_id == iteration_id
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             return {
                 "iteration_id": iteration_id,
                 "contracts": json.loads(row["contract_json"]),
@@ -403,32 +409,44 @@ class CoordinatorStore:
             raise StoreConflict("Submission decisions require a closed iteration barrier")
         iteration = self.get_iteration(iteration_id)
         with self.engine.begin() as connection:
-            packet = connection.execute(
-                select(packets).where(
-                    packets.c.iteration_id == iteration_id,
-                    packets.c.lane_id == value.lane_id,
+            packet = (
+                connection.execute(
+                    select(packets).where(
+                        packets.c.iteration_id == iteration_id,
+                        packets.c.lane_id == value.lane_id,
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             if packet is None or packet["packet_type"] != "candidate":
                 raise StoreConflict("Only verified candidate packets can receive a decision")
-            existing = connection.execute(
-                select(submission_decisions).where(
-                    submission_decisions.c.iteration_id == iteration_id,
-                    submission_decisions.c.lane_id == value.lane_id,
+            existing = (
+                connection.execute(
+                    select(submission_decisions).where(
+                        submission_decisions.c.iteration_id == iteration_id,
+                        submission_decisions.c.lane_id == value.lane_id,
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             payload = value.model_dump()
             if existing is not None:
                 if any(existing[key] != payload[key] for key in payload):
                     raise StoreConflict("Submission decision is immutable")
                 return False
             if value.decision == "SUBMITTED":
-                submitted_count = connection.execute(
-                    select(submission_decisions.c.lane_id).where(
-                        submission_decisions.c.iteration_id == iteration_id,
-                        submission_decisions.c.decision == "SUBMITTED",
+                submitted_count = (
+                    connection.execute(
+                        select(submission_decisions.c.lane_id).where(
+                            submission_decisions.c.iteration_id == iteration_id,
+                            submission_decisions.c.decision == "SUBMITTED",
+                        )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
                 if len(submitted_count) >= int(iteration["submission_quota"]):
                     raise StoreConflict("Submission quota is exhausted")
             connection.execute(
@@ -494,12 +512,16 @@ class CoordinatorStore:
             raise StoreConflict("Leaderboard results require a submitted candidate")
         payload = value.model_dump()
         with self.engine.begin() as connection:
-            existing = connection.execute(
-                select(leaderboard_results).where(
-                    leaderboard_results.c.iteration_id == iteration_id,
-                    leaderboard_results.c.lane_id == value.lane_id,
+            existing = (
+                connection.execute(
+                    select(leaderboard_results).where(
+                        leaderboard_results.c.iteration_id == iteration_id,
+                        leaderboard_results.c.lane_id == value.lane_id,
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             if existing is not None:
                 same = (
                     json.loads(existing["score_json"]) == payload["score"]
@@ -533,10 +555,7 @@ class CoordinatorStore:
                 .where(leaderboard_results.c.iteration_id == iteration_id)
                 .order_by(leaderboard_results.c.lane_id)
             ).mappings()
-            return [
-                {**dict(row), "score": json.loads(row["score_json"])}
-                for row in rows
-            ]
+            return [{**dict(row), "score": json.loads(row["score_json"])} for row in rows]
 
     def close_leaderboard(self, iteration_id: str) -> bool:
         gate = self.submission_gate(iteration_id)
@@ -565,9 +584,7 @@ class CoordinatorStore:
                     leaderboard_states.c.iteration_id == iteration_id
                 )
             ).scalar_one_or_none()
-        result_lanes = {
-            row["lane_id"] for row in self.leaderboard_result_records(iteration_id)
-        }
+        result_lanes = {row["lane_id"] for row in self.leaderboard_result_records(iteration_id)}
         return closed is not None or set(gate["submitted_lanes"]) == result_lanes
 
     def record_knowledge_snapshot(
@@ -580,12 +597,16 @@ class CoordinatorStore:
     ) -> bool:
         self.get_iteration(source_iteration_id)
         with self.engine.begin() as connection:
-            existing = connection.execute(
-                select(knowledge_snapshots).where(
-                    (knowledge_snapshots.c.snapshot_id == snapshot_id)
-                    | (knowledge_snapshots.c.source_iteration_id == source_iteration_id)
+            existing = (
+                connection.execute(
+                    select(knowledge_snapshots).where(
+                        (knowledge_snapshots.c.snapshot_id == snapshot_id)
+                        | (knowledge_snapshots.c.source_iteration_id == source_iteration_id)
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             if existing is not None:
                 same = (
                     existing["snapshot_id"] == snapshot_id
@@ -609,22 +630,30 @@ class CoordinatorStore:
 
     def knowledge_snapshot(self, snapshot_id: str) -> dict[str, object]:
         with self.engine.connect() as connection:
-            row = connection.execute(
-                select(knowledge_snapshots).where(
-                    knowledge_snapshots.c.snapshot_id == snapshot_id
+            row = (
+                connection.execute(
+                    select(knowledge_snapshots).where(
+                        knowledge_snapshots.c.snapshot_id == snapshot_id
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
         if row is None:
             raise StoreNotFound("Knowledge snapshot not found")
         return dict(row)
 
     def knowledge_snapshot_for_iteration(self, iteration_id: str) -> dict[str, object] | None:
         with self.engine.connect() as connection:
-            row = connection.execute(
-                select(knowledge_snapshots).where(
-                    knowledge_snapshots.c.source_iteration_id == iteration_id
+            row = (
+                connection.execute(
+                    select(knowledge_snapshots).where(
+                        knowledge_snapshots.c.source_iteration_id == iteration_id
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
         return dict(row) if row is not None else None
 
     def record_audit_event(
@@ -670,16 +699,16 @@ class CoordinatorStore:
     def audit_log(self, limit: int = 100) -> list[dict[str, object]]:
         with self.engine.connect() as connection:
             rows = connection.execute(
-                select(audit_events)
-                .order_by(audit_events.c.sequence.desc())
-                .limit(limit)
+                select(audit_events).order_by(audit_events.c.sequence.desc()).limit(limit)
             ).mappings()
             return [dict(row) for row in rows]
 
     def verify_audit_chain(self) -> bool:
         with self.engine.connect() as connection:
             rows = list(
-                connection.execute(select(audit_events).order_by(audit_events.c.sequence)).mappings()
+                connection.execute(
+                    select(audit_events).order_by(audit_events.c.sequence)
+                ).mappings()
             )
         previous_hash = None
         for row in rows:

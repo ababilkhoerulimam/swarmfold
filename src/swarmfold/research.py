@@ -72,9 +72,7 @@ class CrossrefSearchTool:
         headers = {"User-Agent": "SwarmFold/0.1 literature-research-agent"}
         if mailto := os.getenv("CROSSREF_MAILTO"):
             params["mailto"] = mailto
-        response = self.client.get(
-            "https://api.crossref.org/works", params=params, headers=headers
-        )
+        response = self.client.get("https://api.crossref.org/works", params=params, headers=headers)
         response.raise_for_status()
         records = response.json().get("message", {}).get("items", [])
         return [_crossref_source(item) for item in records if item.get("title")]
@@ -200,9 +198,7 @@ def _search_terms(value: str, *, limit: int) -> str:
     return " ".join(selected)
 
 
-def _handling_recommendations(
-    state: ExperimentState, sources: list[LiteratureSource]
-) -> list[str]:
+def _handling_recommendations(state: ExperimentState, sources: list[LiteratureSource]) -> list[str]:
     contracts = ContractBundle.model_validate(state["contracts"])
     recommendations = [
         "Fit every learned preprocessing step inside each training fold.",

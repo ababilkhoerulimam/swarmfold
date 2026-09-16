@@ -35,6 +35,12 @@ def publish_terminal_packet(state: ExperimentState) -> ExperimentState:
     result = RunResult.model_validate(state["run_result"])
     verification = VerificationResult.model_validate(state["verification"])
     contracts = ContractBundle.model_validate(state["contracts"])
+    proposals = {
+        item.experiment_id: item
+        for item in (
+            ExperimentProposal.model_validate(value) for value in state.get("experiment_queue", [])
+        )
+    }
     packet_type = "candidate" if verification.accepted else "failure"
     packet_parent = Path(state["output_dir"]) / "packets" / result.run_id
     packet_directory = packet_parent / f"{packet_type}-packet"
@@ -48,9 +54,19 @@ def publish_terminal_packet(state: ExperimentState) -> ExperimentState:
     )
     contracts_path = staging_directory / "contracts.json"
     shutil.copy2(state["contracts_path"], contracts_path)
-    ledger_path = _write_jsonl(
-        staging_directory / "experiment-ledger.jsonl", state.get("completed_results", [])
-    )
+    ledger_records = []
+    for value in state.get("completed_results", []):
+        completed = RunResult.model_validate(value)
+        proposal_record = proposals.get(completed.experiment_id)
+        ledger_records.append(
+            {
+                **completed.model_dump(),
+                "hypothesis": proposal_record.hypothesis if proposal_record else None,
+                "feature_strategy": (proposal_record.feature_strategy if proposal_record else None),
+                "parameters": proposal_record.parameters if proposal_record else {},
+            }
+        )
+    ledger_path = _write_jsonl(staging_directory / "experiment-ledger.jsonl", ledger_records)
     findings_path = _write_jsonl(staging_directory / "findings.jsonl", state.get("critiques", []))
     decision_path = staging_directory / "decision.md"
     decision_path.write_text(
@@ -74,6 +90,18 @@ def publish_terminal_packet(state: ExperimentState) -> ExperimentState:
             staging_directory / "literature-review.json", literature_review
         )
         packet_files.append(literature_path)
+    reflection = state.get("iteration_reflection")
+    if reflection:
+        reflection_json_path = write_json(
+            staging_directory / "iteration-reflection.json", reflection
+        )
+        packet_files.append(reflection_json_path)
+        reflection_source = Path(state.get("reflection_path", ""))
+        reflection_markdown_source = reflection_source.with_suffix(".md")
+        if reflection_markdown_source.is_file():
+            reflection_markdown_path = staging_directory / "iteration-reflection.md"
+            shutil.copy2(reflection_markdown_source, reflection_markdown_path)
+            packet_files.append(reflection_markdown_path)
     quality_evidence = {
         name: state[name]
         for name in (
@@ -82,6 +110,8 @@ def publish_terminal_packet(state: ExperimentState) -> ExperimentState:
             "domain_decomposition",
             "ensemble_assessment",
             "robustness_assessment",
+            "scheduler_decisions",
+            "iteration_reflection",
         )
         if name in state
     }
@@ -90,14 +120,47 @@ def publish_terminal_packet(state: ExperimentState) -> ExperimentState:
             staging_directory / "modeling-quality-evidence.json", quality_evidence
         )
         packet_files.append(quality_path)
+    if state.get("model_registry"):
+        registry_path = write_json(
+            staging_directory / "model-capability-registry.json", state["model_registry"]
+        )
+        packet_files.append(registry_path)
+    if state.get("technique_plan"):
+        technique_plan_path = write_json(
+            staging_directory / "technique_plan.json", state["technique_plan"]
+        )
+        packet_files.append(technique_plan_path)
+    if state.get("retrieval_provenance"):
+        retrieval_path = write_json(
+            staging_directory / "retrieval-provenance.json",
+            state["retrieval_provenance"],
+        )
+        packet_files.append(retrieval_path)
+    if contracts.data.test_dataset_path:
+        successful = [
+            RunResult.model_validate(value)
+            for value in state.get("completed_results", [])
+            if RunResult.model_validate(value).status == "SUCCEEDED"
+        ]
+        for index, experiment_result in enumerate(successful, start=1):
+            experiment_proposal = proposals.get(experiment_result.experiment_id)
+            if experiment_proposal is None:
+                continue
+            notebook_path = write_end_to_end_notebook(
+                staging_directory / f"experiment-{index:03d}.ipynb",
+                proposal=experiment_proposal,
+                result=experiment_result,
+                contracts=contracts,
+                literature_review=literature_review,
+                quality_evidence=quality_evidence,
+            )
+            packet_files.append(notebook_path)
     if state.get("project_path"):
         project_path = staging_directory / "project.md"
         shutil.copy2(state["project_path"], project_path)
         packet_files.append(project_path)
     if packet_type == "candidate":
-        submission_path = _write_submission(
-            staging_directory / "submission.csv", result, state
-        )
+        submission_path = _write_submission(staging_directory / "submission.csv", result, state)
         oof_path = _write_prediction_parquet(
             staging_directory / "oof_predictions.parquet", result, include_target=True
         )
@@ -256,9 +319,7 @@ def read_packet_manifest(packet_path: str | Path) -> PacketManifest:
     )
 
 
-def _write_submission(
-    path: Path, result: RunResult, state: ExperimentState
-) -> Path:
+def _write_submission(path: Path, result: RunResult, state: ExperimentState) -> Path:
     if state.get("sample_submission_path"):
         prediction_record = next(
             (
@@ -311,11 +372,7 @@ def _write_submission(
 def _write_prediction_parquet(path: Path, result: RunResult, *, include_target: bool) -> Path:
     wanted_name = "validation_predictions.csv" if include_target else "test_predictions.csv"
     source_record = next(
-        (
-            artifact
-            for artifact in result.artifacts
-            if Path(artifact.path).name == wanted_name
-        ),
+        (artifact for artifact in result.artifacts if Path(artifact.path).name == wanted_name),
         None,
     )
     if source_record is None and not include_target:
@@ -324,9 +381,12 @@ def _write_prediction_parquet(path: Path, result: RunResult, *, include_target: 
         raise ValueError("Accepted run has no validation predictions")
     with Path(source_record.path).open(newline="", encoding="utf-8") as source:
         rows = list(csv.DictReader(source))
+    predictions = [
+        row["score"] if include_target and row.get("score") else row["predicted"] for row in rows
+    ]
     values: dict[str, list[str]] = {
         "row": [row["row"] for row in rows],
-        "prediction": [row["predicted"] for row in rows],
+        "prediction": predictions,
     }
     if include_target:
         values["target"] = [row["actual"] for row in rows]
@@ -382,9 +442,9 @@ def _validate_submission(
     if len(rows) != expected_rows:
         raise ValueError("Submission row count does not match the source run")
     if columns == ["row", "prediction"]:
-        expected_ids = [str(index) for index in range(expected_rows)]
-        if [row["row"] for row in rows] != expected_ids:
-            raise ValueError("Submission row identifiers are not unique and ordered")
+        row_ids = [row["row"] for row in rows]
+        if len(set(row_ids)) != len(row_ids):
+            raise ValueError("Submission row identifiers are not unique")
     if any(not row[prediction_column] for row in rows):
         raise ValueError("Submission contains a missing prediction")
 

@@ -197,7 +197,7 @@
 
     .control-grid {
       display: grid;
-      grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+      grid-template-columns: minmax(360px, 470px) minmax(0, 1fr);
       gap: 24px;
       align-items: stretch;
     }
@@ -244,6 +244,44 @@
     .secondary { color: var(--ink); border-color: var(--line); background: var(--white); }
     .secondary:hover { border-color: var(--cyan); }
 
+    .lane-configs { display: grid; gap: 9px; margin: 18px 0; }
+    .lane-config {
+      --lane-color: var(--cyan);
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) 86px;
+      gap: 12px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--lane-color);
+      border-radius: 12px;
+      background: var(--white);
+      transition: opacity .16s ease, border-color .16s ease;
+    }
+    .lane-config[data-lane="ai-b"] { --lane-color: #e19a2b; }
+    .lane-config[data-lane="ai-c"] { --lane-color: #7f73c7; }
+    .lane-config[data-lane="ai-d"] { --lane-color: #cf6f8c; }
+    .lane-config[data-lane="ai-e"] { --lane-color: #4b9277; }
+    .lane-config.off { opacity: .48; }
+    .lane-config-copy strong { display: block; font-size: 13px; }
+    .lane-config-copy small { display: block; margin-top: 3px; line-height: 1.35; }
+    .lane-toggle { width: 38px; height: 22px; accent-color: var(--cyan-dark); }
+    .lane-budget { margin: 0; }
+    .lane-budget label { display: block; margin-bottom: 4px; font-size: 10px; }
+    .lane-budget input { min-height: 36px; padding: 7px 9px; }
+    .portfolio-summary {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 12px 0 16px;
+      padding: 11px 13px;
+      border-radius: 10px;
+      color: #185c64;
+      background: #e7f5f5;
+      font: 700 11px/1.4 "Cascadia Mono", monospace;
+    }
+    .confirmation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
     .rail-panel { position: relative; min-height: 520px; padding: 26px; overflow: hidden; }
     .rail-panel::before {
       content: "";
@@ -263,7 +301,7 @@
     .status-pill.failed { color: #942f2f; background: #f9dddd; }
 
     .rails { position: relative; display: grid; grid-template-columns: 110px minmax(80px,1fr) 118px; gap: 0; margin-top: 38px; }
-    .lane-list, .gate-list { display: grid; grid-template-rows: repeat(6, 46px); gap: 8px; }
+    .lane-list, .gate-list { display: grid; grid-template-rows: repeat(5, 46px); gap: 8px; }
 
     .lane {
       display: flex;
@@ -395,9 +433,136 @@
       .results-head { align-items: flex-start; flex-direction: column; }
     }
 
-    @media (prefers-reduced-motion: reduce) {
-      .track.active::before { animation: none; right: 0; left: auto; }
+    /* Phase 8 Control Room Panels */
+    .tab-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0 22px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
     }
+    .tab-btn {
+      padding: 8px 14px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink-soft);
+      font-weight: 700;
+      font-size: 12px;
+      transition: all .16s ease;
+    }
+    .tab-btn:hover {
+      border-color: var(--cyan);
+      color: var(--ink);
+    }
+    .tab-btn.active {
+      background: var(--ink);
+      color: var(--white);
+      border-color: var(--ink);
+    }
+    .subpanel {
+      display: none;
+      animation: fadeIn .2s ease-in-out;
+    }
+    .subpanel.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .info-card {
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--white);
+    }
+    .info-card h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 750;
+      color: var(--ink);
+    }
+    .info-card p {
+      margin: 0 0 6px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--ink-soft);
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font: 700 11px "Cascadia Mono", monospace;
+      background: #eef2f5;
+      color: var(--ink);
+    }
+    .badge.adopted { background: #d8f1f3; color: #0d6972; }
+    .badge.rejected { background: #fff0ce; color: #815312; }
+    .badge.checkpoint { background: #e0e7ff; color: #3730a3; }
+    .badge.repair { background: #fef3c7; color: #92400e; }
+    .badge.prune { background: #fee2e2; color: #991b1b; }
+    .corr-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 12px;
+    }
+    .corr-table th, .corr-table td {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      text-align: center;
+    }
+    .corr-table th { background: #f4f8fa; font-weight: 700; }
+    .corr-val { font-family: "Cascadia Mono", monospace; font-weight: 700; }
+    .corr-high { color: #d95d5d; background: #fff5f5; }
+    .corr-low { color: #197985; background: #f0fdf4; }
+    .code-box {
+      background: #1a2434;
+      color: #e2e8f0;
+      padding: 14px;
+      border-radius: 10px;
+      font: 12px/1.5 "Cascadia Mono", monospace;
+      overflow-x: auto;
+      max-height: 320px;
+      white-space: pre-wrap;
+    }
+    .dag-flow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    .dag-node {
+      display: flex;
+      flex-direction: column;
+      padding: 9px 12px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.35;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      min-width: 140px;
+    }
+    .dag-node strong { font-size: 11.5px; color: var(--text-dark); margin-bottom: 2px; }
+    .dag-node small { color: #64748b; font-family: monospace; font-size: 10px; }
+    .dag-node.active { border-color: #0d6972; background: #f0fdfa; }
+    .dag-node.completed { border-color: #10b981; background: #ecfdf5; }
+    .dag-node.failed { border-color: #ef4444; background: #fef2f2; }
+    .dag-arrow { color: #94a3b8; font-weight: 700; font-size: 14px; user-select: none; }
   </style>
 </head>
 <body>
@@ -455,25 +620,26 @@
           </div>
           <div class="field-row">
             <div class="field">
-              <label for="experiments">Jumlah eksperimen</label>
-              <input id="experiments" name="max_experiments" type="number" value="4" min="1" max="20" required>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
               <label for="iteration">Iteration ID</label>
               <input id="iteration" name="iteration_id" value="local-iteration" maxlength="128" required>
             </div>
             <div class="field">
-              <label for="lane">Lane</label>
-              <select id="lane" name="lane_id">
-                <option value="ai-a">AI A</option>
-                <option value="ai-b">AI B</option>
-                <option value="ai-c">AI C</option>
+              <label for="concurrency">AI berjalan bersamaan</label>
+              <select id="concurrency" name="max_concurrent_lanes">
+                <option value="1">1 lane</option>
+                <option value="2" selected>2 lanes</option>
+                <option value="3">3 lanes</option>
+                <option value="4">4 lanes</option>
+                <option value="5">5 lanes</option>
               </select>
             </div>
           </div>
-          <input name="max_training_seconds" type="hidden" value="120">
+          <div class="lane-configs" id="lane-configs" aria-label="Konfigurasi lima AI"></div>
+          <div class="portfolio-summary">
+            <span id="enabled-summary">5 AI aktif</span>
+            <span id="budget-summary">Target 25 eksperimen</span>
+          </div>
+          <input id="lane-config-values" name="lane_configs" type="hidden">
           <button class="primary" id="run-button" type="submit">Analisis bundle</button>
           <div class="notice" id="run-notice"></div>
         </form>
@@ -481,35 +647,34 @@
         <article class="panel rail-panel">
           <div class="rail-head">
             <div>
-              <div class="eyebrow">Six-lane evidence rail</div>
+              <div class="eyebrow">Five-lane modeling portfolio</div>
               <h2 class="panel-title" id="active-title">Belum ada run aktif</h2>
               <p class="panel-copy" id="active-copy">Mulai eksperimen untuk melihat alur dari proposal hingga packet.</p>
             </div>
             <span class="status-pill" id="run-status">IDLE</span>
           </div>
 
-          <div class="rails" aria-label="Status enam lane">
+          <div class="rails" aria-label="Status lima AI lane">
             <div class="lane-list">
               <div class="lane" data-lane="ai-a"><span class="lane-dot"></span>AI A</div>
               <div class="lane" data-lane="ai-b"><span class="lane-dot"></span>AI B</div>
               <div class="lane" data-lane="ai-c"><span class="lane-dot"></span>AI C</div>
-              <div class="lane"><span class="lane-dot"></span>Human 1</div>
-              <div class="lane"><span class="lane-dot"></span>Human 2</div>
-              <div class="lane"><span class="lane-dot"></span>Human 3</div>
+              <div class="lane" data-lane="ai-d"><span class="lane-dot"></span>AI D</div>
+              <div class="lane" data-lane="ai-e"><span class="lane-dot"></span>AI E</div>
             </div>
             <div class="tracks">
               <div class="track" data-track="ai-a"></div>
               <div class="track" data-track="ai-b"></div>
               <div class="track" data-track="ai-c"></div>
-              <div class="track"></div><div class="track"></div><div class="track"></div>
+              <div class="track" data-track="ai-d"></div>
+              <div class="track" data-track="ai-e"></div>
             </div>
             <div class="gate-list">
-              <div class="gate main">Evidence gate</div>
-              <div class="gate">Candidate</div>
-              <div class="gate">Failure</div>
-              <div class="gate">Waiver</div>
-              <div class="gate">Leaderboard</div>
-              <div class="gate">Knowledge</div>
+              <div class="gate" data-lane-state="ai-a">Standby</div>
+              <div class="gate" data-lane-state="ai-b">Standby</div>
+              <div class="gate" data-lane-state="ai-c">Standby</div>
+              <div class="gate" data-lane-state="ai-d">Standby</div>
+              <div class="gate" data-lane-state="ai-e">Standby</div>
             </div>
           </div>
 
@@ -544,7 +709,10 @@
           <label for="profile-json">Profil terstruktur, boleh dikoreksi sebelum konfirmasi</label>
           <textarea id="profile-json" spellcheck="false"></textarea>
         </div>
-        <button class="primary" id="confirm-profile" type="button">Pemahaman sudah benar, jalankan</button>
+        <div class="confirmation-actions">
+          <button class="secondary" id="confirm-profile" type="button">Kunci pemahaman</button>
+          <button class="primary" id="start-training" type="button" disabled>Mulai training</button>
+        </div>
         <div class="notice" id="profile-notice"></div>
       </section>
 
@@ -556,8 +724,44 @@
           </div>
           <div class="artifact-actions" id="artifact-actions"></div>
         </div>
-        <div id="results-table"><div class="empty">Hasil model akan muncul setelah run selesai.</div></div>
-        <div id="literature-panel"></div>
+        <div class="tab-bar" id="results-tab-bar">
+          <button class="tab-btn active" type="button" data-tab="tab-overview">Overview &amp; DAG</button>
+          <button class="tab-btn" type="button" data-tab="tab-contracts">Problem &amp; Contracts</button>
+          <button class="tab-btn" type="button" data-tab="tab-folds">Fold Metrics &amp; Resources</button>
+          <button class="tab-btn" type="button" data-tab="tab-events">Prune &amp; Repair Events</button>
+          <button class="tab-btn" type="button" data-tab="tab-ensemble">Diversity &amp; Ensemble</button>
+          <button class="tab-btn" type="button" data-tab="tab-reflection">Reflection &amp; Priors</button>
+          <button class="tab-btn" type="button" data-tab="tab-literature">Techniques &amp; Research</button>
+        </div>
+
+        <div class="subpanel active" id="tab-overview">
+          <div id="execution-dag-panel" style="margin-bottom: 20px;"></div>
+          <div id="results-table"><div class="empty">Hasil model akan muncul setelah run selesai.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-contracts">
+          <div id="contracts-panel"><div class="empty">Belum ada kontrak terkonfirmasi.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-folds">
+          <div id="folds-panel"><div class="empty">Metrik per-fold akan tersedia setelah training selesai.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-events">
+          <div id="events-panel"><div class="empty">Tidak ada event prune atau self-healing repair.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-ensemble">
+          <div id="ensemble-panel"><div class="empty">Asesmen ensemble akan muncul setelah seluruh lane selesai.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-reflection">
+          <div id="reflection-panel"><div class="empty">Refleksi iterasi akan dibuat pada tahap publish.</div></div>
+        </div>
+
+        <div class="subpanel" id="tab-literature">
+          <div id="literature-panel"><div class="empty">Belum ada bukti literatur atau teknik.</div></div>
+        </div>
       </section>
 
       <div class="bottom-grid">
@@ -586,8 +790,42 @@
 
   <script>
     const state = { token: sessionStorage.getItem("swarmfold-token") || "", activeRun: null, poller: null };
+    const laneDefinitions = [
+      ["ai-a", "AI A", "Conservative Scientist", "Baseline stabil dan sanity check"],
+      ["ai-b", "AI B", "Boosting Specialist", "Tree ensemble dan tuning nonlinear"],
+      ["ai-c", "AI C", "Feature Scientist", "Representasi dan seleksi fitur"],
+      ["ai-d", "AI D", "Alternative Explorer", "Model alternatif dan prediction diversity"],
+      ["ai-e", "AI E", "Robustness Challenger", "Stabilitas, imbalance, dan ensemble"]
+    ];
     const login = document.getElementById("login");
     const loginError = document.getElementById("login-error");
+
+    function renderLaneConfigs() {
+      const container = document.getElementById("lane-configs");
+      container.innerHTML = laneDefinitions.map(([id, label, name, focus]) => `<article class="lane-config" data-lane="${id}">
+        <input class="lane-toggle" type="checkbox" data-lane-enabled="${id}" checked aria-label="Aktifkan ${label}">
+        <div class="lane-config-copy"><strong>${label} · ${name}</strong><small>${focus}</small></div>
+        <div class="lane-budget"><label for="budget-${id}">Eksperimen</label><input id="budget-${id}" type="number" value="5" min="5" max="100" data-lane-budget="${id}"></div>
+      </article>`).join("");
+      container.querySelectorAll("input").forEach(input => input.addEventListener("change", updatePortfolioConfig));
+      updatePortfolioConfig();
+    }
+
+    function updatePortfolioConfig() {
+      const lanes = laneDefinitions.map(([laneId]) => {
+        const enabled = document.querySelector(`[data-lane-enabled="${laneId}"]`).checked;
+        const budget = Math.max(5, Math.min(100, Number(document.querySelector(`[data-lane-budget="${laneId}"]`).value) || 5));
+        document.querySelector(`[data-lane="${laneId}"].lane-config`).classList.toggle("off", !enabled);
+        return { lane_id: laneId, enabled, max_experiments: budget };
+      });
+      const enabled = lanes.filter(lane => lane.enabled);
+      const total = enabled.reduce((sum, lane) => sum + lane.max_experiments, 0);
+      document.getElementById("lane-config-values").value = JSON.stringify(lanes);
+      document.getElementById("enabled-summary").textContent = `${enabled.length} AI aktif`;
+      document.getElementById("budget-summary").textContent = `Target ${total} eksperimen`;
+      document.getElementById("run-button").disabled = enabled.length === 0 || total > 200;
+      return { lanes, enabled, total };
+    }
 
     async function api(path, options = {}) {
       const headers = new Headers(options.headers || {});
@@ -656,6 +894,9 @@
       button.disabled = true;
       button.textContent = "Membaca bundle";
       try {
+        const portfolio = updatePortfolioConfig();
+        if (!portfolio.enabled.length) throw new Error("Aktifkan minimal satu AI lane.");
+        if (portfolio.total > 200) throw new Error("Total budget melampaui server limit 200 eksperimen.");
         const record = await api("/v1/ui/runs", { method: "POST", body: new FormData(event.target) });
         state.activeRun = record.run_id;
         renderRun(record);
@@ -665,8 +906,8 @@
       } catch (error) {
         showNotice(notice, error.message, "error");
       } finally {
-        button.disabled = false;
         button.textContent = "Analisis bundle";
+        updatePortfolioConfig();
       }
     });
 
@@ -697,18 +938,25 @@
       const pill = document.getElementById("run-status");
       pill.textContent = status;
       pill.className = `status-pill ${status.toLowerCase()}`;
-      document.getElementById("active-title").textContent = `${record.dataset_name} · ${record.lane_id}`;
+      document.getElementById("active-title").textContent = record.dataset_name;
+      const activeLanes = (record.lanes || []).filter(lane => lane.enabled);
       document.getElementById("active-copy").textContent = record.error
         ? record.error
         : record.profile
-          ? `${record.model} · ${record.profile.task_type} · ${record.max_experiments} experiments`
+          ? `${record.model} · ${activeLanes.length} AI · maksimum ${record.max_experiments} eksperimen`
           : `${record.model} · memahami ${record.bundle_files?.length || 1} file`;
       document.querySelectorAll(".lane").forEach(element => element.classList.remove("active", "done"));
       document.querySelectorAll(".track").forEach(element => element.classList.remove("active"));
-      const lane = document.querySelector(`[data-lane="${record.lane_id}"]`);
-      const track = document.querySelector(`[data-track="${record.lane_id}"]`);
-      if (lane) lane.classList.add(["ACCEPTED", "REJECTED"].includes(status) ? "done" : "active");
-      if (track && ["PROFILING", "QUEUED", "RUNNING"].includes(status)) track.classList.add("active");
+      (record.lanes || []).forEach(laneRecord => {
+        const lane = document.querySelector(`.lane[data-lane="${laneRecord.lane_id}"]`);
+        const track = document.querySelector(`[data-track="${laneRecord.lane_id}"]`);
+        const laneState = document.querySelector(`[data-lane-state="${laneRecord.lane_id}"]`);
+        const laneStatus = String(laneRecord.status || (laneRecord.enabled ? "PLANNED" : "DISABLED"));
+        if (["ACCEPTED", "REJECTED", "FAILED"].includes(laneStatus)) lane?.classList.add("done");
+        if (["PLANNED", "QUEUED", "RUNNING"].includes(laneStatus)) lane?.classList.add("active");
+        if (track && laneStatus === "RUNNING") track.classList.add("active");
+        if (laneState) laneState.textContent = laneStatus;
+      });
       const steps = [...document.querySelectorAll(".flow-step")];
       steps.forEach(step => step.classList.remove("active", "done"));
       if (status === "PROFILING") {
@@ -719,6 +967,7 @@
         steps.slice(0, 2).forEach(step => step.classList.add("done"));
         steps[2].classList.add("active");
       }
+      if (status === "READY_TO_TRAIN") steps.slice(0, 3).forEach(step => step.classList.add("done"));
       if (status === "QUEUED") steps.slice(0, 3).forEach(step => step.classList.add("done"));
       if (status === "RUNNING") {
         steps.slice(0, 3).forEach(step => step.classList.add("done"));
@@ -728,6 +977,7 @@
       if (status === "FAILED") steps.find(step => !step.classList.contains("done"))?.classList.add("active");
       renderProfile(record);
       renderResults(record);
+      document.getElementById("start-training").disabled = status !== "READY_TO_TRAIN";
     }
 
     function renderProfile(record) {
@@ -847,12 +1097,11 @@
           body: JSON.stringify(profile)
         });
         renderRun(record);
-        showNotice(notice, "Profil dikunci. Training dimulai.", "info");
-        startPolling(record.run_id);
+        showNotice(notice, "Profil dikunci. Konfigurasi siap untuk training.", "info");
       } catch (error) {
         showNotice(notice, error.message, "error");
       } finally {
-        button.textContent = "Pemahaman sudah benar, jalankan";
+        button.textContent = "Kunci pemahaman";
         if (state.activeRun) {
           const current = await api(`/v1/ui/runs/${state.activeRun}`).catch(() => null);
           button.disabled = current?.status !== "AWAITING_CONFIRMATION";
@@ -860,37 +1109,287 @@
       }
     });
 
+    document.getElementById("start-training").addEventListener("click", async () => {
+      const button = document.getElementById("start-training");
+      const notice = document.getElementById("profile-notice");
+      try {
+        button.disabled = true;
+        button.textContent = "Menyiapkan portfolio";
+        const record = await api(`/v1/ui/runs/${state.activeRun}/start`, { method: "POST" });
+        renderRun(record);
+        showNotice(notice, "Training dimulai untuk seluruh AI yang aktif.", "info");
+        startPolling(record.run_id);
+      } catch (error) {
+        showNotice(notice, error.message, "error");
+      } finally {
+        button.textContent = "Mulai training";
+      }
+    });
+
+    function setupTabs() {
+      document.querySelectorAll("[data-tab]").forEach(button => {
+        button.onclick = () => {
+          document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+          document.querySelectorAll(".subpanel").forEach(p => p.classList.remove("active"));
+          button.classList.add("active");
+          const target = document.getElementById(button.dataset.tab);
+          if (target) target.classList.add("active");
+        };
+      });
+    }
+
     function renderResults(record) {
+      renderExecutionDAG(record);
+      renderOverviewTable(record);
+      renderContractsPanel(record);
+      renderFoldsPanel(record);
+      renderEventsPanel(record);
+      renderEnsemblePanel(record);
+      renderReflectionPanel(record);
+      renderTechniquesPanel(record);
+
+      const actions = document.getElementById("artifact-actions");
+      const names = record.full_package ? ["full-package.zip"] : [];
+      actions.innerHTML = names.map(name => `<button class="primary" type="button" data-download="${name}">Download Full Package</button>`).join("");
+      actions.querySelectorAll("[data-download]").forEach(button => button.addEventListener("click", () => downloadArtifact(record.run_id, button.dataset.download)));
+    }
+
+    function renderExecutionDAG(record) {
+      const container = document.getElementById("execution-dag-panel");
+      if (!container) return;
+
+      const status = record.status || "IDLE";
+      const isProfiled = !!record.profile;
+      const isConfirmed = status !== "AWAITING_CONFIRMATION" && isProfiled;
+      const isRunning = status === "RUNNING" || status === "READY_TO_TRAIN";
+      const isDone = status === "COMPLETED" || status === "ACCEPTED" || status === "REJECTED";
+      const hasEnsemble = !!record.ensemble_assessment;
+      const hasRepairs = (record.prune_and_repair_events || []).length > 0;
+      const hasPackage = !!record.full_package;
+
+      const nodes = [
+        { id: "intake", name: "Intake & Guard", phase: "P7", state: isProfiled ? "completed" : (status === "PROFILING" ? "active" : "pending"), desc: "Profile bundle & check modality" },
+        { id: "contracts", name: "Contracts Lock", phase: "P0", state: isConfirmed ? "completed" : (isProfiled ? "active" : "pending"), desc: "Lock task, metric, target" },
+        { id: "technique", name: "Technique Plan", phase: "P2", state: isDone || isRunning ? "completed" : "pending", desc: "Literature & technique cards" },
+        { id: "validation", name: "Auto Validation", phase: "P3", state: isDone || isRunning ? "completed" : "pending", desc: "Trait-based split & audit" },
+        { id: "features", name: "Feature Pipeline", phase: "P4", state: isDone || isRunning ? "completed" : "pending", desc: "Fold-safe features & ablation" },
+        { id: "portfolio", name: "5-AI Portfolio", phase: "P1", state: isDone ? "completed" : (isRunning ? "active" : "pending"), desc: "Parallel model search (A-E)" },
+        { id: "healing", name: "Self-Healing", phase: "P6", state: isDone ? "completed" : (hasRepairs ? "active" : "pending"), desc: "Fold checkpoint & auto-repair" },
+        { id: "registry", name: "OOF Registry", phase: "P5", state: isDone ? "completed" : "pending", desc: "Prediction alignment & diversity" },
+        { id: "ensemble", name: "Ensemble Engine", phase: "P5", state: hasEnsemble ? "completed" : "pending", desc: "Weighted blend & champion gate" },
+        { id: "package", name: "Full Package", phase: "P8", state: hasPackage ? "completed" : "pending", desc: "SHA-256 package & verification" }
+      ];
+
+      container.innerHTML = `
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 13px; color: var(--text-dark);">Lifecycle Execution Graph (Phase 2–8 Pipeline)</strong>
+          <small style="color: #64748b;">Run Status: <span class="mono">${escapeHtml(status)}</span></small>
+        </div>
+        <div class="dag-flow">
+          ${nodes.map((node, i) => `
+            <div class="dag-node ${node.state}">
+              <div style="display: flex; justify-content: space-between; gap: 8px;">
+                <strong>${escapeHtml(node.name)}</strong>
+                <span class="badge" style="font-size: 9px; padding: 2px 5px;">${node.phase}</span>
+              </div>
+              <small>${escapeHtml(node.desc)}</small>
+              <div style="margin-top: 5px; font-weight: 700; font-size: 10px; color: ${node.state === 'completed' ? '#10b981' : (node.state === 'active' ? '#0d6972' : '#94a3b8')};">
+                ${node.state === 'completed' ? '✓ Completed' : (node.state === 'active' ? '● Running' : '○ Pending')}
+              </div>
+            </div>
+            ${i < nodes.length - 1 ? '<div class="dag-arrow">→</div>' : ''}
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderOverviewTable(record) {
       const container = document.getElementById("results-table");
-      const literaturePanel = document.getElementById("literature-panel");
-      const review = record.literature_research;
-      literaturePanel.innerHTML = review ? `<div class="profile-summary">
-        <div class="eyebrow">Literature Research Agent</div>
-        <h3>${escapeHtml(review.status)}</h3>
-        <p>${review.sources?.length || 0} sumber akademik ditemukan. Literatur menjadi dasar hipotesis, sedangkan klaim performa tetap memerlukan validasi lokal.</p>
-        ${(review.sources || []).slice(0, 5).map(source => `<p><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>${source.year ? ` (${escapeHtml(source.year)})` : ""}</p>`).join("")}
-        ${(review.handling_recommendations || []).map(item => `<p>${escapeHtml(item)}</p>`).join("")}
-      </div>` : "";
       const experiments = record.experiments || [];
       if (!experiments.length) {
         container.innerHTML = `<div class="empty">${record.status === "FAILED" ? escapeHtml(record.error) : "Eksperimen sedang diproses."}</div>`;
-        document.getElementById("artifact-actions").innerHTML = "";
         return;
       }
       container.innerHTML = `<table>
-        <thead><tr><th>Model</th><th>Accuracy</th><th>Verdict</th><th>Duration</th><th>Peak memory</th></tr></thead>
+        <thead><tr><th>Lane</th><th>Model & Strategy</th><th>Metric Score</th><th>Verdict</th><th>Duration</th><th>Resource Usage</th></tr></thead>
         <tbody>${experiments.map(item => `<tr>
-          <td><strong>${escapeHtml(item.model_family)}</strong><br><small class="mono">${escapeHtml(item.experiment_id)}</small></td>
+          <td class="mono">${escapeHtml(item.lane_id)}</td>
+          <td><strong>${escapeHtml(item.estimator || item.model_family)}</strong>
+            ${item.resumed_from_checkpoint ? '<span class="badge checkpoint">Resumed Fold</span>' : ''}
+            ${item.repair_history?.length ? '<span class="badge repair">Repaired</span>' : ''}
+            <br><small class="mono">${escapeHtml(item.model_family)} · ${escapeHtml(item.feature_strategy || "raw")}</small>
+            <br><small class="mono">${escapeHtml(JSON.stringify(item.parameters || {}))}</small>
+            <br><small class="mono">${escapeHtml(item.experiment_id)}</small></td>
           <td class="metric">${item.score == null ? "Belum tersedia" : `${escapeHtml(item.metric_name)} ${Number(item.score).toFixed(4)}`}</td>
-          <td>${escapeHtml(item.verdict || item.status)}</td>
+          <td><span class="badge ${item.verdict === 'PRUNED' ? 'prune' : ''}">${escapeHtml(item.verdict || item.status)}</span></td>
           <td class="metric">${item.duration_seconds == null ? "Belum tersedia" : Number(item.duration_seconds).toFixed(2) + "s"}</td>
           <td class="metric">${item.resource_usage?.peak_rss_mb == null ? "Belum tersedia" : Number(item.resource_usage.peak_rss_mb).toFixed(1) + " MB"}</td>
         </tr>`).join("")}</tbody>
       </table>`;
-      const actions = document.getElementById("artifact-actions");
-      const names = record.packet ? ["packet.zip", "submission.csv", "end-to-end.ipynb", "literature-review.json", "decision.md", "experiment-ledger.jsonl"] : [];
-      actions.innerHTML = names.map(name => `<button class="secondary" type="button" data-download="${name}">${name}</button>`).join("");
-      actions.querySelectorAll("[data-download]").forEach(button => button.addEventListener("click", () => downloadArtifact(record.run_id, button.dataset.download)));
+    }
+
+    function renderContractsPanel(record) {
+      const panel = document.getElementById("contracts-panel");
+      const c = record.contracts || (record.profile ? {
+        task_type: record.profile.task_type,
+        target_column: record.profile.target_column,
+        metric: record.profile.metric,
+        train_rows: "Terkonfirmasi",
+        test_rows: "Terkonfirmasi"
+      } : null);
+      if (!c) {
+        panel.innerHTML = '<div class="empty">Kontrak belum tersedia untuk run ini.</div>';
+        return;
+      }
+      panel.innerHTML = `<div class="card-grid">
+        <article class="info-card">
+          <h4>Problem & Task Contract</h4>
+          <p><strong>Task Type:</strong> ${escapeHtml(c.task_type)}</p>
+          <p><strong>Target Column:</strong> <span class="mono">${escapeHtml(c.target_column)}</span></p>
+          <p><strong>Metric:</strong> <span class="badge">${escapeHtml(c.metric)}</span></p>
+        </article>
+        <article class="info-card">
+          <h4>Dataset Dimensions</h4>
+          <p><strong>Training Rows:</strong> ${escapeHtml(c.train_rows || 'N/A')}</p>
+          <p><strong>Inference Rows:</strong> ${escapeHtml(c.test_rows || 'N/A')}</p>
+          <p><strong>Prediction Column:</strong> <span class="mono">${escapeHtml(c.prediction_column || 'prediction')}</span></p>
+        </article>
+        <article class="info-card">
+          <h4>Validation Safeguards</h4>
+          <p><strong>Splitter:</strong> Fold-safe, target-stratified / grouped</p>
+          <p><strong>Leakage Defense:</strong> Preprocessor fitted strictly on train fold</p>
+          <p><strong>ID Columns:</strong> <span class="mono">${escapeHtml((c.id_columns || []).join(', ') || 'Auto-detected')}</span></p>
+        </article>
+      </div>`;
+    }
+
+    function renderFoldsPanel(record) {
+      const panel = document.getElementById("folds-panel");
+      const exps = (record.experiments || []).filter(e => e.fold_metrics && e.fold_metrics.length > 0);
+      if (!exps.length) {
+        panel.innerHTML = '<div class="empty">Metrik fold individu akan muncul setelah evaluasi fold selesai.</div>';
+        return;
+      }
+      panel.innerHTML = `<table>
+        <thead><tr><th>Experiment ID</th><th>Model</th><th>Folds Evaluated</th><th>Fold Scores</th><th>Mean Score</th></tr></thead>
+        <tbody>${exps.map(item => `<tr>
+          <td class="mono">${escapeHtml(item.experiment_id)}</td>
+          <td><strong>${escapeHtml(item.estimator || item.model_family)}</strong></td>
+          <td>${item.fold_metrics.length} folds</td>
+          <td class="mono">${item.fold_metrics.map((f, i) => `Fold ${i}: ${Number(f).toFixed(4)}`).join(" · ")}</td>
+          <td class="metric"><strong>${item.score == null ? "N/A" : Number(item.score).toFixed(4)}</strong></td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+    }
+
+    function renderEventsPanel(record) {
+      const panel = document.getElementById("events-panel");
+      const events = record.prune_and_repair_events || [];
+      if (!events.length) {
+        panel.innerHTML = '<div class="empty">Tidak ada trial yang diprune atau memerlukan self-healing repair.</div>';
+        return;
+      }
+      panel.innerHTML = `<table>
+        <thead><tr><th>Lane</th><th>Event Type</th><th>Experiment ID</th><th>Lineage / Details</th></tr></thead>
+        <tbody>${events.map(ev => `<tr>
+          <td class="mono">${escapeHtml(ev.lane_id)}</td>
+          <td><span class="badge ${ev.event_type === 'PRUNED' ? 'prune' : ev.event_type === 'FAILURE' ? 'rejected' : 'repair'}">${escapeHtml(ev.event_type)}</span></td>
+          <td class="mono">${escapeHtml(ev.experiment_id)}</td>
+          <td>${ev.original_experiment_id ? `<small>Root: <span class="mono">${escapeHtml(ev.original_experiment_id)}</span><br></small>` : ''}
+            <small class="mono">${escapeHtml(JSON.stringify(ev.details || {}))}</small></td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+    }
+
+    function renderEnsemblePanel(record) {
+      const panel = document.getElementById("ensemble-panel");
+      const ens = record.ensemble_assessment || (record.full_package?.ensemble) || null;
+      if (!ens || ens.status === "SKIPPED" || ens.status === "DISABLED") {
+        panel.innerHTML = `<div class="empty">${escapeHtml(ens?.reason || "Belum ada asesmen ensemble.")}</div>`;
+        return;
+      }
+      const isAdopted = Boolean(ens.adopted);
+      const agentF = record.agent_f || {};
+      const corr = ens.correlation_matrix || record.diversity || {};
+      const cols = Object.keys(corr);
+
+      let corrTable = "";
+      if (cols.length > 0) {
+        corrTable = `<h4>Pairwise Prediction Correlation Matrix</h4>
+        <table class="corr-table">
+          <thead><tr><th>Lane / Model</th>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>
+          <tbody>${cols.map(row => `<tr>
+            <th>${escapeHtml(row)}</th>
+            ${cols.map(col => {
+              const val = corr[row]?.[col] ?? 0;
+              const cls = val > 0.95 ? 'corr-high' : val < 0.7 ? 'corr-low' : '';
+              return `<td class="corr-val ${cls}">${Number(val).toFixed(3)}</td>`;
+            }).join("")}
+          </tr>`).join("")}</tbody>
+        </table>`;
+      }
+
+      panel.innerHTML = `<div class="card-grid">
+        <article class="info-card">
+          <h4>Agent F Ensemble Decision Gate</h4>
+          <p><strong>Stage:</strong> ${escapeHtml(agentF.status || ens.status || 'ASSESSED')}</p>
+          <p><strong>Members:</strong> ${Number(agentF.member_count || ens.members?.length || 0)}</p>
+          <p><strong>Decision:</strong> <span class="badge ${isAdopted ? 'adopted' : 'rejected'}">${isAdopted ? 'ADOPTED' : 'REJECTED'}</span></p>
+          <p><strong>Rule:</strong> ${escapeHtml(ens.rule || 'OOF validation threshold')}</p>
+          <p><strong>Reason:</strong> ${escapeHtml(ens.reason || '')}</p>
+        </article>
+        <article class="info-card">
+          <h4>Score Comparison</h4>
+          <p><strong>Champion Single (${escapeHtml(ens.champion_lane || 'N/A')}):</strong> ${ens.champion_score == null ? 'N/A' : Number(ens.champion_score).toFixed(4)}</p>
+          <p><strong>Ensemble Score:</strong> ${ens.ensemble_score == null ? 'N/A' : Number(ens.ensemble_score).toFixed(4)}</p>
+          <p><strong>Improvement:</strong> ${ens.improved_over_best_single ? '✅ Beat Champion' : '❌ Did not improve'}</p>
+        </article>
+        <article class="info-card">
+          <h4>Blend Weights</h4>
+          ${Object.entries(ens.weights || {}).map(([k, v]) => `<p><span class="mono">${escapeHtml(k)}:</span> <strong>${(Number(v) * 100).toFixed(1)}%</strong></p>`).join("") || '<p>Equal weights</p>'}
+        </article>
+      </div>
+      ${corrTable}`;
+    }
+
+    function renderReflectionPanel(record) {
+      const panel = document.getElementById("reflection-panel");
+      const text = record.reflection_text || "";
+      if (!text) {
+        panel.innerHTML = '<div class="empty">Refleksi iterasi dan prior knowledge akan terbit bersama full-package.</div>';
+        return;
+      }
+      panel.innerHTML = `<h4>Consolidated Experiment Knowledge (Priors for Next Iteration)</h4>
+      <div class="code-box">${escapeHtml(text)}</div>`;
+    }
+
+    function renderTechniquesPanel(record) {
+      const panel = document.getElementById("literature-panel");
+      const review = record.literature_research;
+      const tech = record.technique_evidence || [];
+      if (!review && !tech.length) {
+        panel.innerHTML = '<div class="empty">Belum ada bukti literatur atau kartu teknik tersimpan.</div>';
+        return;
+      }
+      let html = "";
+      if (review) {
+        html += `<div class="profile-summary">
+          <div class="eyebrow">Literature Research Agent</div>
+          <h3>${escapeHtml(review.status)}</h3>
+          <p>${review.sources?.length || 0} sumber akademik ditemukan. Literatur menjadi dasar hipotesis, sedangkan klaim performa tetap memerlukan validasi lokal.</p>
+          ${(review.sources || []).slice(0, 5).map(source => `<p><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a>${source.year ? ` (${escapeHtml(source.year)})` : ""}</p>`).join("")}
+          ${(review.handling_recommendations || []).map(item => `<p>${escapeHtml(item)}</p>`).join("")}
+        </div>`;
+      }
+      if (tech.length) {
+        html += `<h4>Retrieved Technique Plans by Lane</h4>
+        <div class="card-grid">${tech.map(t => `<article class="info-card">
+          <h4>${escapeHtml(t.lane_id.toUpperCase())} Technique Plan</h4>
+          <p><strong>Techniques:</strong> ${(t.plan?.techniques || []).join(', ') || 'Standard baselines'}</p>
+          <p><strong>Rationale:</strong> ${escapeHtml(t.plan?.rationale || 'Domain-specific search')}</p>
+        </article>`).join("")}</div>`;
+      }
+      panel.innerHTML = html;
     }
 
     async function loadRuns() {
@@ -944,6 +1443,8 @@
       }
     });
 
+    renderLaneConfigs();
+    setupTabs();
     connect();
   </script>
 </body>

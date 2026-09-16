@@ -1,9 +1,16 @@
 from hashlib import sha256
+from pathlib import Path
 
+from swarmfold.candidates import CandidateFactory
 from swarmfold.contracts import freeze_contracts
-from swarmfold.data import load_classification_csv
+from swarmfold.data import load_training_csv
+from swarmfold.metrics import get_metric_spec
+from swarmfold.model_registry import model_capability_registry
+from swarmfold.optimization import AdaptiveScheduler, HPOConfig, HPOController
 from swarmfold.planner import ProposalPlanner
+from swarmfold.reflection import IterationReflector, ReflectionMemoryStore
 from swarmfold.research import LiteratureResearchAgent
+from swarmfold.retrieval import TechniqueRetriever
 from swarmfold.schemas import (
     BudgetPolicy,
     ContractBundle,
@@ -12,6 +19,7 @@ from swarmfold.schemas import (
     ExperimentState,
     RunResult,
 )
+from swarmfold.technique_plan import build_technique_plan
 
 LOGICAL_ROLES = (
     "pod_supervisor",
@@ -23,6 +31,7 @@ LOGICAL_ROLES = (
     "eda_agent",
     "domain_target_decomposition_agent",
     "literature_research_agent",
+    "experiment_memory_agent",
     "model_scout",
     "portfolio_planner",
     "feature_engineer",
@@ -63,7 +72,7 @@ def inspect_rules(state: ExperimentState) -> ExperimentState:
         {
             "external_data_allowed": False,
             "submission_requires_human_approval": True,
-            "task_type": "binary_classification",
+            "task_type": "pending_problem_formulation",
             "competition_brief_provided": bool(state.get("project_context")),
         },
     )
@@ -96,7 +105,8 @@ def audit_validation(state: ExperimentState) -> ExperimentState:
 
 
 def inspect_eda(state: ExperimentState) -> ExperimentState:
-    features, target = load_classification_csv(state["dataset_path"], state["target_column"])
+    task_type = str(state["problem_formulation"]["task_type"])
+    features, target = load_training_csv(state["dataset_path"], state["target_column"], task_type)
     numeric_count = int(features.select_dtypes(include="number").shape[1])
     report = {
         "rows": int(features.shape[0]),
@@ -104,10 +114,17 @@ def inspect_eda(state: ExperimentState) -> ExperimentState:
         "numeric_features": numeric_count,
         "categorical_features": int(features.shape[1] - numeric_count),
         "missing_values": int(features.isna().sum().sum()),
-        "class_counts": {
-            str(label): int((target == label).sum()) for label in sorted(set(target.tolist()))
-        },
     }
+    if task_type == "regression":
+        report["target_summary"] = {
+            "minimum": float(target.min()),
+            "maximum": float(target.max()),
+            "mean": float(target.mean()),
+        }
+    else:
+        report["class_counts"] = {
+            str(label): int((target == label).sum()) for label in sorted(set(target.tolist()))
+        }
     return _with_report(state, "eda_agent", report)
 
 
@@ -123,61 +140,179 @@ def create_literature_research_node(agent: LiteratureResearchAgent):
     return research_literature
 
 
+def inspect_experiment_memory(state: ExperimentState) -> ExperimentState:
+    memories = state.get("prior_knowledge", [])
+    current_contracts = ContractBundle.model_validate(state["contracts"])
+    classified = []
+    for memory in memories:
+        prior_profile = memory.get("source_profile")
+        status = "CONTEXT_ONLY"
+        if isinstance(prior_profile, dict):
+            same_target = prior_profile.get("target_column") == current_contracts.data.target_column
+            same_metric = str(prior_profile.get("metric", "")).casefold().replace("-", "_") == (
+                current_contracts.metric.metric_name
+            )
+            if same_target and same_metric:
+                status = "TRANSFERABLE_HYPOTHESIS"
+        classified.append({**memory, "transfer_status": status})
+    return {
+        "prior_knowledge": classified,
+        **_with_report(
+            state,
+            "experiment_memory_agent",
+            {
+                "packages_read": len(classified),
+                "transferable": sum(
+                    item["transfer_status"] == "TRANSFERABLE_HYPOTHESIS" for item in classified
+                ),
+                "blind_reuse_allowed": False,
+            },
+        ),
+    }
+
+
 def scout_models(state: ExperimentState) -> ExperimentState:
-    candidates: list[dict[str, object]] = [
-        {
-            "hypothesis": "A scaled logistic model establishes a stable linear accuracy baseline.",
-            "model_family": "logistic_regression",
-            "feature_strategy": "scaled_numeric",
-            "parameters": {"c": 1.0},
-        },
-        {
-            "hypothesis": (
-                "A random forest captures nonlinear feature interactions missed by the baseline."
+    budget = BudgetPolicy.model_validate(state["budget"])
+    registry = model_capability_registry()
+    lane_id = state.get("lane_id", "ai-a")
+    task_type = str(state["problem_formulation"]["task_type"])
+    hpo_controller = None
+    if lane_id == "ai-b":
+        metric_spec = get_metric_spec(str(state["contracts"]["metric"]["metric_name"]))
+        study_id = ":".join(
+            (
+                str(state.get("iteration_id", "local-iteration")),
+                lane_id,
+                task_type,
+                metric_spec.name,
+            )
+        )
+        hpo_controller = HPOController(
+            Path(state["output_dir"]) / "hpo.sqlite",
+            HPOConfig(
+                study_id=study_id,
+                direction="maximize" if metric_spec.higher_is_better else "minimize",
+                seed=int(state.get("seed", 42)),
             ),
-            "model_family": "random_forest",
-            "feature_strategy": "raw_numeric",
-            "parameters": {"n_estimators": 100, "max_depth": 5},
-        },
+        )
+    factory = CandidateFactory(registry, hpo_controller=hpo_controller)
+    candidates = factory.create(
+        lane_id,
+        max(budget.max_experiments, 5),
+        task_type=task_type,
+    )
+    if not candidates:
+        raise ValueError(
+            f"No installed executable model family supports task '{task_type}' in lane '{lane_id}'"
+        )
+    eligibility = factory.eligibility_report(lane_id, task_type)
+    candidate_families = {str(item["model_family"]) for item in candidates}
+    traits = state["problem_formulation"].get("dataset_traits", {})
+    summary_traits = (
+        list(traits.get("summary_traits", [])) if isinstance(traits, dict) else []
+    )
+    retriever = TechniqueRetriever()
+    retrieved = retriever.retrieve(
+        role="model_engineer",
+        task_type=task_type,
+        dataset_traits=summary_traits,
+        query=f"{task_type} {state['contracts']['metric']['metric_name']} modeling",
+        top_k=12,
+        role_scoped_only=True,
+    )
+    planned_family = str(candidates[0]["model_family"])
+    selected_cards = [
+        card
+        for card in retrieved
+        if not card.model_family or card.model_family == planned_family
+    ][:5]
+    rejected_cards = [
         {
-            "hypothesis": (
-                "Histogram gradient boosting improves nonlinear fit with bounded complexity."
+            "card_id": card.card_id,
+            "reason": (
+                f"runtime family '{card.model_family}' is not eligible for lane {lane_id}"
+                if card.model_family and card.model_family not in candidate_families
+                else f"lane {lane_id} prioritized '{planned_family}' for this allocation"
             ),
-            "model_family": "hist_gradient_boosting",
-            "feature_strategy": "raw_numeric",
-            "parameters": {"max_iter": 100, "max_depth": 3},
-        },
-        {
-            "hypothesis": (
-                "A soft voting ensemble improves robustness when base model families succeed."
-            ),
-            "model_family": "soft_voting",
-            "feature_strategy": "scaled_numeric",
-            "parameters": {},
-        },
-        {
-            "hypothesis": "A scaled logistic model establishes a stable linear accuracy baseline.",
-            "model_family": "logistic_regression",
-            "feature_strategy": "scaled_numeric",
-            "parameters": {"c": 1.0},
-        },
+        }
+        for card in retrieved
+        if card not in selected_cards
     ]
-    update = _with_report(state, "model_scout", {"candidate_count": len(candidates)})
-    return {**update, "scout_candidates": candidates}
+    contracts = ContractBundle.model_validate(state["contracts"])
+    technique_plan = build_technique_plan(
+        selected_cards,
+        role="model_engineer",
+        task_type=task_type,
+        metric_name=contracts.metric.metric_name,
+        higher_is_better=contracts.metric.higher_is_better,
+        model_family=planned_family,
+        feature_steps=[str(candidates[0]["feature_strategy"])],
+        validation_strategy=contracts.validation.strategy,
+    )
+    retrieval_provenance = {
+        **retriever.record_provenance(
+            selected_cards,
+            query=f"{task_type} {contracts.metric.metric_name} modeling",
+            role="model_engineer",
+        ),
+        "dataset_traits": summary_traits,
+        "rejected_cards": rejected_cards,
+        "runtime_mapping": {
+            "model_family": planned_family,
+            "feature_strategy": candidates[0]["feature_strategy"],
+            "validation_strategy": contracts.validation.strategy,
+        },
+    }
+    update = _with_report(
+        state,
+        "model_scout",
+        {
+            "candidate_count": len(candidates),
+            "lane_id": lane_id,
+            "installed_model_families": [
+                item["model_family"] for item in registry if item["installed"]
+            ],
+            "executable_model_families": [
+                item["model_family"] for item in registry if item.get("executable")
+            ],
+            "eligibility": eligibility,
+            "selected_technique_cards": technique_plan.source_card_ids,
+            "technique_plan_executable": technique_plan.is_executable,
+        },
+    )
+    return {
+        **update,
+        "scout_candidates": candidates,
+        "model_registry": registry,
+        "technique_plan": technique_plan.model_dump(),
+        "retrieval_provenance": retrieval_provenance,
+    }
 
 
 def create_portfolio_node(planner: ProposalPlanner):
     def build_portfolio(state: ExperimentState) -> ExperimentState:
         contracts = ContractBundle.model_validate(state["contracts"])
         candidates = list(state["scout_candidates"])
+        preferred_families = {
+            str(memory["champion_model_family"])
+            for memory in state.get("prior_knowledge", [])
+            if memory.get("transfer_status") == "TRANSFERABLE_HYPOTHESIS"
+            and memory.get("champion_model_family")
+        }
+        if preferred_families:
+            candidates.sort(
+                key=lambda item: str(item["model_family"]) not in preferred_families
+            )
         planned_baseline = planner.propose(state)
         candidates[0] = {
-            "hypothesis": planned_baseline.hypothesis,
-            "model_family": planned_baseline.model_family,
-            "feature_strategy": planned_baseline.feature_strategy,
-            "parameters": planned_baseline.parameters,
+            **candidates[0],
+            "hypothesis": (
+                f"{planned_baseline.hypothesis} The {state.get('lane_id', 'ai-a')} charter "
+                f"tests this through {candidates[0]['model_family']} with "
+                f"{candidates[0]['feature_strategy']}."
+            ),
         }
-        candidates[-1] = dict(candidates[0])
+        candidates.append(dict(candidates[0]))
 
         queue: list[dict[str, object]] = []
         seen: set[str] = set()
@@ -204,6 +339,8 @@ def create_portfolio_node(planner: ProposalPlanner):
                 metric_version=contracts.metric.metric_version,
                 test_size=contracts.validation.test_size,
                 seed=contracts.validation.seed,
+                hpo_study_id=candidate.get("hpo_study_id"),
+                hpo_trial_number=candidate.get("hpo_trial_number"),
             )
             queue.append(proposal.model_dump())
         budget = BudgetPolicy.model_validate(state["budget"])
@@ -215,6 +352,8 @@ def create_portfolio_node(planner: ProposalPlanner):
                 "queued": len(queue),
                 "duplicates_rejected": len(duplicates),
                 "budget_limit": budget.max_experiments,
+                "memory_preferred_families": sorted(preferred_families),
+                "memory_changed_priority": bool(preferred_families),
             },
         )
         return {
@@ -225,6 +364,14 @@ def create_portfolio_node(planner: ProposalPlanner):
         }
 
     return build_portfolio
+
+
+def _lane_candidates(
+    lane_id: str,
+    limit: int,
+    task_type: str = "binary_classification",
+) -> list[dict[str, object]]:
+    return CandidateFactory().create(lane_id, limit, task_type=task_type)
 
 
 def engineer_features(state: ExperimentState) -> ExperimentState:
@@ -255,17 +402,22 @@ def critique_result(state: ExperimentState) -> ExperimentState:
     completed = [RunResult.model_validate(item) for item in state.get("completed_results", [])]
     contracts = ContractBundle.model_validate(state["contracts"])
     metric_name = contracts.metric.metric_name
+    metric_spec = get_metric_spec(metric_name)
     successful_before = [
         item.metrics[metric_name] for item in completed[:-1] if item.status == "SUCCEEDED"
     ]
-    if result.status == "FAILED":
+    if result.status != "SUCCEEDED":
         verdict = "FAILED"
         score = None
     else:
         score = result.metrics[metric_name]
-        best_before = max(successful_before, default=None)
-        verdict = "IMPROVED" if best_before is None or score > best_before else "TIED"
-        if best_before is not None and score < best_before:
+        best_before = metric_spec.best(successful_before) if successful_before else None
+        verdict = (
+            "IMPROVED"
+            if best_before is None or metric_spec.is_better(score, best_before)
+            else "TIED"
+        )
+        if best_before is not None and metric_spec.is_better(best_before, score):
             verdict = "REGRESSED"
     critique = ExperimentCritique(
         experiment_id=result.experiment_id,
@@ -282,23 +434,40 @@ def critique_result(state: ExperimentState) -> ExperimentState:
     next_index = state["current_experiment_index"] + 1
     queue = [ExperimentProposal.model_validate(item) for item in state["experiment_queue"]]
     ensemble_gate = state.get("ensemble_gate", "PENDING")
-    if next_index < len(queue) and queue[next_index].model_family == "soft_voting":
-        required = {"logistic_regression", "random_forest"}
-        if required.issubset(coverage):
-            ensemble_gate = "OPEN"
-        else:
-            ensemble_gate = "SKIPPED"
-            next_index += 1
+    if len(coverage) >= 2:
+        ensemble_gate = "OPEN"
+
+    scheduler_decisions = list(state.get("scheduler_decisions", []))
+    if next_index < len(queue) - 1:
+        before = queue[next_index:]
+        prioritized = AdaptiveScheduler().prioritize_queue(
+            [item.model_dump() for item in before],
+            [item.model_dump() for item in completed],
+            metric_name=metric_name,
+            higher_is_better=metric_spec.higher_is_better,
+        )
+        reordered = [ExperimentProposal.model_validate(item) for item in prioritized]
+        queue = [*queue[:next_index], *reordered]
+        scheduler_decisions.append(
+            {
+                "after_experiment_id": result.experiment_id,
+                "before": [item.experiment_id for item in before],
+                "after": [item.experiment_id for item in reordered],
+                "metric_name": metric_name,
+            }
+        )
 
     stop_reason = ""
     if len(completed) >= budget.max_experiments:
         stop_reason = "experiment budget exhausted"
-    elif training_seconds >= budget.max_training_seconds:
+    elif (
+        budget.max_training_seconds is not None and training_seconds >= budget.max_training_seconds
+    ):
         stop_reason = "training-time budget exhausted"
     elif next_index >= len(queue):
         stop_reason = "portfolio exhausted"
     next_action = "VERIFY" if stop_reason else "CONTINUE"
-    selected = _select_result(completed)
+    selected = _select_result(completed, metric_name)
     resource_usage = dict(state.get("resource_usage", {}))
     resource_usage["training_seconds"] = training_seconds
     update = _with_report(
@@ -315,6 +484,8 @@ def critique_result(state: ExperimentState) -> ExperimentState:
         "critiques": critiques,
         "model_coverage": coverage,
         "ensemble_gate": ensemble_gate,
+        "experiment_queue": [item.model_dump() for item in queue],
+        "scheduler_decisions": scheduler_decisions,
         "current_experiment_index": next_index,
         "next_action": next_action,
         "stop_reason": stop_reason,
@@ -350,6 +521,47 @@ def verify_selected_evidence(state: ExperimentState) -> ExperimentState:
     }
 
 
+def reflect_iteration(state: ExperimentState) -> ExperimentState:
+    contracts = ContractBundle.model_validate(state["contracts"])
+    report = IterationReflector().generate_reflection(
+        iteration_id=state["iteration_id"],
+        completed_results=list(state.get("completed_results", [])),
+        metric_name=contracts.metric.metric_name,
+        higher_is_better=contracts.metric.higher_is_better,
+        ensemble_assessment=state.get("ensemble_assessment"),
+    )
+    store = ReflectionMemoryStore()
+    reflection_path = store.save_reflection(Path(state["output_dir"]), report)
+    prior_package = store.to_prior_knowledge_package(
+        report,
+        source_profile={
+            "target_column": contracts.data.target_column,
+            "metric": contracts.metric.metric_name,
+            "task_type": contracts.competition.task_type,
+            "data_version": contracts.data.data_version,
+        },
+    )
+    findings = list(state.get("critiques", []))
+    findings.extend(
+        {
+            "experiment_id": report.champion_experiment_id or "iteration",
+            "verdict": "REFLECTION",
+            "metric_name": report.metric_name,
+            "score": report.champion_score,
+            "recommendation": insight.insight,
+            "category": insight.category,
+            "evidence": insight.evidence,
+        }
+        for insight in report.insights
+    )
+    return {
+        "iteration_reflection": report.model_dump(),
+        "reflection_path": str(reflection_path),
+        "next_iteration_knowledge": prior_package,
+        "critiques": findings,
+    }
+
+
 def route_after_critique(state: ExperimentState) -> str:
     return "continue" if state["next_action"] == "CONTINUE" else "verify"
 
@@ -362,11 +574,16 @@ def _current_proposal(state: ExperimentState) -> ExperimentProposal:
     return ExperimentProposal.model_validate(queue[index])
 
 
-def _select_result(results: list[RunResult]) -> RunResult:
+def _select_result(results: list[RunResult], metric_name: str | None = None) -> RunResult:
     successful = [item for item in results if item.status == "SUCCEEDED"]
     if successful:
-        metric_name = next(iter(successful[0].metrics))
-        return max(successful, key=lambda item: item.metrics[metric_name])
+        resolved_metric = metric_name or next(iter(successful[0].metrics))
+        metric_spec = get_metric_spec(resolved_metric)
+        return sorted(
+            successful,
+            key=lambda item: item.metrics[resolved_metric],
+            reverse=metric_spec.higher_is_better,
+        )[0]
     if not results:
         raise ValueError("Result critic has no completed experiments")
     return results[-1]

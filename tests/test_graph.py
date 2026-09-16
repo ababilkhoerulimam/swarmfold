@@ -2,6 +2,7 @@ import csv
 import json
 from pathlib import Path
 
+import pyarrow.parquet as pq
 import pytest
 
 from swarmfold.artifacts import sha256_file
@@ -52,11 +53,18 @@ def test_experiment_graph_publishes_verified_candidate(tmp_path: Path) -> None:
     assert first["contracts"]["contract_sha256"]
     assert first["proposal"]["data_version"] == first["contracts"]["data"]["data_version"]
     assert first["proposal"]["split_id"] == first["contracts"]["validation"]["split_id"]
+    assert first["technique_plan"]["model_family"] == first["proposal"]["model_family"]
+    assert first["technique_plan"]["is_executable"] is True
+    assert first["retrieval_provenance"]["runtime_mapping"]["model_family"] == (
+        first["proposal"]["model_family"]
+    )
 
     packet_path = Path(first["packet"]["packet_path"])
     assert first["packet"]["packet_type"] == "candidate"
     assert (packet_path / "COMPLETED.json").is_file()
     assert (packet_path / "submission.csv").is_file()
+    assert (packet_path / "technique_plan.json").is_file()
+    assert (packet_path / "retrieval-provenance.json").is_file()
     assert sha256_file(packet_path / "artifact-manifest.json") == first["packet"]["manifest_sha256"]
     assert validate_terminal_packet(packet_path).packet_type == "candidate"
 
@@ -106,9 +114,7 @@ def test_experiment_uses_profiled_bundle_and_submission_template(tmp_path: Path)
     assert all(cell["execution_count"] is None and cell["outputs"] == [] for cell in code_cells)
     for index, cell in enumerate(code_cells, start=1):
         compile("".join(cell["source"]), f"notebook-cell-{index}", "exec")
-    assert notebook["metadata"]["swarmfold"]["evidence_status"] == (
-        "recorded_notebook_unexecuted"
-    )
+    assert notebook["metadata"]["swarmfold"]["evidence_status"] == ("recorded_notebook_unexecuted")
     assert "Modeling quality gates" in json.dumps(notebook)
     assert validate_terminal_packet(packet_path).packet_type == "candidate"
 
@@ -132,9 +138,7 @@ def test_mixed_categorical_bundle_uses_roc_auc_probabilities(tmp_path: Path) -> 
         encoding="utf-8",
     )
     template_path = bundle / "submission.csv"
-    template_path.write_text(
-        "record_id,target\n101,0.5\n102,0.5\n103,0.5\n", encoding="utf-8"
-    )
+    template_path.write_text("record_id,target\n101,0.5\n102,0.5\n103,0.5\n", encoding="utf-8")
     brief_path = bundle / "project.md"
     brief_path.write_text("target_column: target\nmetric: ROC-AUC\n", encoding="utf-8")
 
@@ -156,9 +160,55 @@ def test_mixed_categorical_bundle_uses_roc_auc_probabilities(tmp_path: Path) -> 
     submission = list(csv.DictReader((packet_path / "submission.csv").open(encoding="utf-8")))
     probabilities = [float(row["target"]) for row in submission]
     assert all(0.0 <= value <= 1.0 for value in probabilities)
+    oof = pq.read_table(packet_path / "oof_predictions.parquet").to_pydict()
+    assert all(0.0 <= float(value) <= 1.0 for value in oof["prediction"])
     notebook_text = (packet_path / "end-to-end.ipynb").read_text(encoding="utf-8")
     assert "roc_auc" in notebook_text
     assert "OneHotEncoder" in notebook_text
+
+
+def test_graph_executes_multiclass_and_regression_tasks(tmp_path: Path) -> None:
+    multiclass_path = tmp_path / "multiclass.csv"
+    multiclass_path.write_text(
+        "row,numeric,category,target\n"
+        + "".join(
+            f"{index},{index % 7},{'left' if index % 2 else 'right'},"
+            f"{['cat', 'dog', 'bird'][index % 3]}\n"
+            for index in range(45)
+        ),
+        encoding="utf-8",
+    )
+    multiclass = run_experiment(
+        multiclass_path,
+        metric_name="accuracy",
+        output_dir=tmp_path / "multiclass-output",
+        max_experiments=1,
+    )
+
+    assert multiclass["status"] == "ACCEPTED"
+    assert multiclass["contracts"]["competition"]["task_type"] == "multiclass_classification"
+    assert multiclass["contracts"]["metric"]["metric_name"] == "accuracy"
+
+    regression_path = tmp_path / "regression.csv"
+    regression_path.write_text(
+        "row,numeric,category,target\n"
+        + "".join(
+            f"{index},{index % 11},{'left' if index % 2 else 'right'},"
+            f"{(index * 2.75) + ((index % 4) * 0.25)}\n"
+            for index in range(40)
+        ),
+        encoding="utf-8",
+    )
+    regression = run_experiment(
+        regression_path,
+        output_dir=tmp_path / "regression-output",
+        max_experiments=1,
+    )
+
+    assert regression["status"] == "ACCEPTED"
+    assert regression["contracts"]["competition"]["task_type"] == "regression"
+    assert regression["contracts"]["metric"]["metric_name"] == "rmse"
+    assert regression["run_result"]["metrics"]["rmse"] >= 0.0
 
 
 def test_live_planner_uses_validated_structured_output(tmp_path: Path) -> None:

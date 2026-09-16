@@ -35,11 +35,19 @@ def load_prompt_envelope(value: dict[str, object]) -> PromptEnvelope:
 
 
 def render_planner_prompt(
-    *, rows: int, features: int, classes: int, project_context: str = "Not provided."
+    *,
+    rows: int,
+    features: int,
+    classes: int,
+    project_context: str = "Not provided.",
+    retrieved_techniques: str = "",
 ) -> str:
-    return PLANNER_PROMPT.template.format(
+    base = PLANNER_PROMPT.template.format(
         rows=rows,
         features=features,
         classes=classes,
         project_context=project_context[:20_000] or "Not provided.",
     )
+    if retrieved_techniques:
+        base += f"\n\nRelevant Method Knowledge:\n{retrieved_techniques}"
+    return base

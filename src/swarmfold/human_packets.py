@@ -272,9 +272,7 @@ def _submission_row_count(path: Path) -> int:
         return sum(1 for _ in reader)
 
 
-def _validate_prediction_parquet(
-    path: Path, expected_rows: int, *, require_target: bool
-) -> None:
+def _validate_prediction_parquet(path: Path, expected_rows: int, *, require_target: bool) -> None:
     table = pq.read_table(path)
     required = {"row", "prediction"}
     if require_target:
@@ -284,8 +282,8 @@ def _validate_prediction_parquet(
     if table.num_rows != expected_rows:
         raise ValueError("Prediction parquet row count does not match submission")
     row_ids = [str(value) for value in table.column("row").to_pylist()]
-    if row_ids != [str(index) for index in range(expected_rows)]:
-        raise ValueError("Prediction parquet row identifiers are not unique and ordered")
+    if len(set(row_ids)) != len(row_ids):
+        raise ValueError("Prediction parquet row identifiers are not unique")
     if any(value is None for value in table.column("prediction").to_pylist()):
         raise ValueError("Prediction parquet contains missing predictions")
 

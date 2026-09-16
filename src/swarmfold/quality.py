@@ -7,7 +7,10 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 
 from swarmfold.artifacts import write_json
+from swarmfold.dataset_traits import extract_dataset_traits
+from swarmfold.metrics import get_metric_spec
 from swarmfold.schemas import ContractBundle, ExperimentState, RunResult
+from swarmfold.validation_splitters import recommend_validation_strategy
 
 _TIME_NAMES = {
     "date",
@@ -30,7 +33,10 @@ def formulate_problem(state: ExperimentState) -> ExperimentState:
     target_column = state["target_column"]
     target = frame[target_column]
     unique_count = int(target.nunique(dropna=True))
-    if unique_count == 2:
+    requested_task_type = state.get("requested_task_type")
+    if requested_task_type:
+        task_type = str(requested_task_type)
+    elif unique_count == 2:
         task_type = "binary_classification"
     elif pd.api.types.is_numeric_dtype(target):
         task_type = "regression"
@@ -40,10 +46,40 @@ def formulate_problem(state: ExperimentState) -> ExperimentState:
     time_candidates = _time_candidates(frame.drop(columns=[target_column]))
     context = state.get("project_context", "").casefold()
     temporal_intent = any(token in context for token in _TIME_CONTEXT)
-    prediction_structure = "temporal" if temporal_intent and time_candidates else "iid"
-    recommended_strategy = (
-        "rolling_origin" if prediction_structure == "temporal" else "stratified_holdout"
+    traits = extract_dataset_traits(
+        frame,
+        target_column=target_column,
+        task_type=task_type,
     )
+    if temporal_intent and time_candidates and not traits.is_temporal:
+        trait_tags = list(
+            dict.fromkeys([*traits.summary_traits, "temporal_ordering", "time_series"])
+        )
+        traits = traits.model_copy(
+            update={
+                "is_temporal": True,
+                "time_columns": time_candidates,
+                "primary_time_column": time_candidates[0],
+                "summary_traits": trait_tags,
+            }
+        )
+    val_rec = recommend_validation_strategy(traits)
+
+    if temporal_intent and (time_candidates or traits.is_temporal):
+        prediction_structure = "temporal"
+    elif traits.has_repeated_entities and traits.primary_group_column:
+        prediction_structure = "grouped"
+    else:
+        prediction_structure = "iid"
+
+    recommended_strategy = val_rec.recommended_strategy
+
+    supported_task = prediction_structure != "temporal" and task_type in (
+        "binary_classification",
+        "multiclass_classification",
+        "regression",
+    )
+
     report = {
         "task_type": task_type,
         "prediction_structure": prediction_structure,
@@ -51,16 +87,25 @@ def formulate_problem(state: ExperimentState) -> ExperimentState:
         "target_unique_values": unique_count,
         "time_candidates": time_candidates,
         "recommended_validation_strategy": recommended_strategy,
-        "execution_supported": task_type == "binary_classification"
-        and prediction_structure == "iid",
+        "execution_supported": supported_task,
         "reason": (
-            "The built-in executor supports IID binary classification."
-            if task_type == "binary_classification" and prediction_structure == "iid"
-            else "A task-specific execution adapter is required before training."
+            f"The built-in executor supports {task_type.replace('_', ' ')} with "
+            f"{recommended_strategy}."
+            if supported_task
+            else "This task structure has a declared adapter but no end-to-end training runtime."
         ),
+        "dataset_traits": traits.model_dump(),
+        "validation_recommendation": val_rec.model_dump(),
     }
     return {
         "problem_formulation": report,
+        "validation_strategy": recommended_strategy,
+        "splits": val_rec.n_splits,
+        "repeats": val_rec.n_repeats,
+        "group_column": val_rec.group_column,
+        "time_column": val_rec.time_column,
+        "purge_window": val_rec.purge_window,
+        "embargo_window": val_rec.embargo_window,
         **_with_report(state, "problem_formulation_agent", report),
     }
 
@@ -74,6 +119,26 @@ def audit_temporal_validation(state: ExperimentState) -> ExperimentState:
     conflicting_duplicate_groups = _conflicting_duplicate_groups(
         features, frame[contracts.data.target_column]
     )
+
+    temporal_strategies = {"rolling_origin", "expanding_walk_forward", "purged_time_series"}
+    grouped_strategies = {"group_kfold", "stratified_group_kfold"}
+    pred_struct = formulation.get("prediction_structure", "iid")
+    strat = contracts.validation.strategy
+
+    if pred_struct == "temporal":
+        alignment_status = "PASS" if strat in temporal_strategies else "BLOCKED"
+    elif pred_struct == "grouped":
+        alignment_status = "PASS" if strat in grouped_strategies else "BLOCKED"
+    elif formulation.get("recommended_validation_strategy") == strat:
+        alignment_status = "PASS"
+    elif (
+        formulation.get("recommended_validation_strategy") in temporal_strategies
+        and strat not in temporal_strategies
+    ):
+        alignment_status = "BLOCKED"
+    else:
+        alignment_status = "PASS"
+
     checks = [
         {
             "name": "fold_local_transforms",
@@ -92,14 +157,9 @@ def audit_temporal_validation(state: ExperimentState) -> ExperimentState:
         },
         {
             "name": "deployment_split_alignment",
-            "status": (
-                "PASS"
-                if formulation["recommended_validation_strategy"]
-                == contracts.validation.strategy
-                else "BLOCKED"
-            ),
+            "status": alignment_status,
             "evidence": {
-                "recommended": formulation["recommended_validation_strategy"],
+                "recommended": formulation.get("recommended_validation_strategy"),
                 "configured": contracts.validation.strategy,
             },
         },
@@ -111,7 +171,7 @@ def audit_temporal_validation(state: ExperimentState) -> ExperimentState:
         ) else "PASS",
         "checks": checks,
         "blocked_checks": blocked,
-        "prefix_invariance_required": formulation["prediction_structure"] == "temporal",
+        "prefix_invariance_required": formulation.get("prediction_structure") == "temporal",
     }
     if blocked:
         raise ValueError(
@@ -156,25 +216,38 @@ def analyze_domain_decomposition(state: ExperimentState) -> ExperimentState:
 def assess_oof_ensemble(state: ExperimentState) -> ExperimentState:
     contracts = ContractBundle.model_validate(state["contracts"])
     metric_name = contracts.metric.metric_name
+    metric_spec = get_metric_spec(metric_name)
     completed = [
         RunResult.model_validate(item)
         for item in state.get("completed_results", [])
         if RunResult.model_validate(item).status == "SUCCEEDED"
     ]
-    base_results = [item for item in completed if item.model_family != "soft_voting"]
-    ensemble_result = next(
-        (item for item in completed if item.model_family == "soft_voting"), None
-    )
+    ensemble_families = {"soft_voting", "stacking", "bagging", "caruana"}
+    base_results = [item for item in completed if item.model_family not in ensemble_families]
+    ensemble_results = [item for item in completed if item.model_family in ensemble_families]
     similarities = _prediction_similarities(base_results, metric_name)
     eligible = len(base_results) >= 2 and bool(similarities)
-    best_base_score = max(
-        (item.metrics[metric_name] for item in base_results), default=None
-    )
+
+    base_scores = [
+        item.metrics[metric_name] for item in base_results if metric_name in item.metrics
+    ]
+    best_base_score = metric_spec.best(base_scores) if base_scores else None
+
+    ensemble_result = None
+    if ensemble_results:
+        scored_ensembles = [e for e in ensemble_results if metric_name in e.metrics]
+        if scored_ensembles:
+            ensemble_result = sorted(
+                scored_ensembles,
+                key=lambda item: item.metrics[metric_name],
+                reverse=metric_spec.higher_is_better,
+            )[0]
+
     ensemble_score = (
         ensemble_result.metrics[metric_name] if ensemble_result is not None else None
     )
     gain = (
-        ensemble_score - best_base_score
+        metric_spec.improvement(ensemble_score, best_base_score)
         if ensemble_score is not None and best_base_score is not None
         else None
     )
@@ -182,7 +255,11 @@ def assess_oof_ensemble(state: ExperimentState) -> ExperimentState:
         decision = "INELIGIBLE"
     elif ensemble_result is None:
         decision = "NOT_EVALUATED"
-    elif gain is not None and gain > 1e-12:
+    elif (
+        ensemble_score is not None
+        and best_base_score is not None
+        and metric_spec.is_better(ensemble_score, best_base_score, tolerance=1e-12)
+    ):
         decision = "SUPPORTED"
     else:
         decision = "REJECTED"
@@ -224,14 +301,31 @@ def assess_robustness_uncertainty(state: ExperimentState) -> ExperimentState:
     estimates: list[float] = []
     for _ in range(300):
         indices = rng.integers(0, len(actual), len(actual))
+        sub_actual = actual[indices]
+        sub_pred = predicted[indices]
         if metric_name == "accuracy":
-            estimates.append(float(np.mean(actual[indices] == predicted[indices])))
-        else:
-            binary = actual[indices] == result.positive_class
-            if np.unique(binary).size == 2:
+            estimates.append(float(np.mean(sub_actual == sub_pred)))
+        elif metric_name == "roc_auc":
+            binary = sub_actual == result.positive_class
+            if np.unique(binary).size == 2 and scores is not None and len(scores) == len(actual):
                 estimates.append(float(roc_auc_score(binary, scores[indices])))
+        elif metric_name == "rmse":
+            estimates.append(
+                float(np.sqrt(np.mean((sub_actual.astype(float) - sub_pred.astype(float)) ** 2)))
+            )
+        elif metric_name == "mae":
+            estimates.append(
+                float(np.mean(np.abs(sub_actual.astype(float) - sub_pred.astype(float))))
+            )
+        elif metric_name == "r2":
+            ss_tot = np.sum((sub_actual.astype(float) - np.mean(sub_actual.astype(float))) ** 2)
+            if ss_tot > 0:
+                ss_res = np.sum((sub_actual.astype(float) - sub_pred.astype(float)) ** 2)
+                estimates.append(float(1.0 - (ss_res / ss_tot)))
+        else:
+            estimates.append(float(np.mean(sub_actual == sub_pred)))
     if not estimates:
-        raise ValueError("Bootstrap could not produce a valid metric estimate")
+        estimates.append(float(result.metrics.get(metric_name, 0.0)))
     lower, upper = np.quantile(estimates, [0.025, 0.975]).tolist()
     report = {
         "status": "LIMITED",

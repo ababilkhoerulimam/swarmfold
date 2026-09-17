@@ -262,3 +262,95 @@ def test_reconstruct_ensemble_submission_roundtrip(tmp_path: Path) -> None:
 
     # 0.5 * [0.2, 0.4, 0.8] + 0.5 * [0.4, 0.6, 0.6] = [0.3, 0.5, 0.7]
     assert [float(r["target"]) for r in rows] == pytest.approx([0.3, 0.5, 0.7])
+
+
+def test_stacking_ensemble_multiclass() -> None:
+    """Stacking meta-learner should produce label predictions for 3-class problems."""
+    rng = np.random.default_rng(0)
+    n = 90  # 30 per class, cleanly divisible by 5 folds
+    y = np.array([0, 1, 2] * 30)  # balanced 3-class targets
+
+    # Two base-model OOF probability columns each (3 columns each for 3 classes)
+    def _noisy_proba(y_true: np.ndarray, noise: float) -> np.ndarray:
+        proba = np.zeros((len(y_true), 3))
+        for i, label in enumerate(y_true):
+            proba[i, label] = 1.0
+        proba += rng.normal(0, noise, proba.shape)
+        proba = np.clip(proba, 0, None)
+        proba /= proba.sum(axis=1, keepdims=True)
+        return proba
+
+    p1 = _noisy_proba(y, 0.3)  # shape (90, 3)
+    p2 = _noisy_proba(y, 0.5)  # shape (90, 3)
+
+    stacker = StackingEnsemble(task_type="multiclass_classification")
+    meta_oof = stacker.cross_fit([p1, p2], y)
+    assert meta_oof.shape == (n,), "multiclass OOF should be a 1D label array"
+    assert set(np.unique(meta_oof)).issubset({0, 1, 2})
+
+    test_p1 = _noisy_proba(y, 0.3)
+    test_p2 = _noisy_proba(y, 0.5)
+    test_preds = stacker.predict([test_p1, test_p2])
+    assert test_preds.shape == (n,)
+    assert set(np.unique(test_preds)).issubset({0, 1, 2})
+
+
+def test_stacking_ensemble_multilabel() -> None:
+    """Stacking meta-learner should produce a binary indicator matrix for multilabel problems."""
+    rng = np.random.default_rng(1)
+    n = 60
+    n_labels = 3
+    y = (rng.random((n, n_labels)) > 0.5).astype(int)  # (60, 3) binary indicators
+
+    # Each base model predicts the same shape binary matrix
+    p1 = np.clip(y + rng.normal(0, 0.2, y.shape), 0, 1)
+    p2 = np.clip(y + rng.normal(0, 0.2, y.shape), 0, 1)
+
+    stacker = StackingEnsemble(task_type="multilabel_classification")
+    meta_oof = stacker.cross_fit([p1, p2], y)
+    assert meta_oof.shape == (n, n_labels), "multilabel OOF should be (n_samples, n_labels)"
+    assert meta_oof.dtype in (np.int32, np.int64, np.int_, int)
+    assert set(np.unique(meta_oof)).issubset({0, 1})
+
+    test_preds = stacker.predict([p1, p2])
+    assert test_preds.shape == (n, n_labels)
+
+
+def test_eval_stacking_eligible_task_types() -> None:
+    """_eval_stacking must not return None for multiclass or multilabel task types."""
+    from swarmfold.ensemble.engine import UnifiedEnsembleEngine
+
+    rng = np.random.default_rng(42)
+    n = 60
+
+    # Multiclass
+    y_mc = np.array([0, 1, 2] * 20)
+    p1_mc = np.tile(y_mc.reshape(-1, 1), (1, 3)) / 2.0 + rng.random((n, 3)) * 0.1
+    p1_mc /= p1_mc.sum(axis=1, keepdims=True)
+    engine_mc = UnifiedEnsembleEngine(
+        task_type="multiclass_classification", metric_name="accuracy", seed=42
+    )
+    result_mc = engine_mc._eval_stacking(  # noqa: SLF001
+        member_names=["m1"],
+        oof_predictions=[p1_mc],
+        targets=y_mc,
+        test_predictions=[p1_mc],
+    )
+    assert result_mc is not None, "multiclass stacking should not return None (INELIGIBLE)"
+    assert result_mc.method == "stacking"
+
+    # Multilabel
+    y_ml = (rng.random((n, 2)) > 0.5).astype(int)
+    p1_ml = np.clip(y_ml + rng.normal(0, 0.2, y_ml.shape), 0, 1)
+    engine_ml = UnifiedEnsembleEngine(
+        task_type="multilabel_classification", metric_name="multilabel_f1", seed=42
+    )
+    result_ml = engine_ml._eval_stacking(  # noqa: SLF001
+        member_names=["m1"],
+        oof_predictions=[p1_ml],
+        targets=y_ml,
+        test_predictions=[p1_ml],
+    )
+    assert result_ml is not None, "multilabel stacking should not return None (INELIGIBLE)"
+    assert result_ml.method == "stacking"
+

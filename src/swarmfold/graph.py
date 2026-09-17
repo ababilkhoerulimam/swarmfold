@@ -38,6 +38,11 @@ from swarmfold.roles import (
     route_after_critique,
     scout_models,
     verify_selected_evidence,
+    meta_strategy_planner,
+    long_tail_scout_agent,
+    deep_feature_synthesizer_agent,
+    adversarial_trainer_agent,
+    optuna_optimizer_agent,
 )
 from swarmfold.schemas import BudgetPolicy, ContractBundle, ExperimentState
 
@@ -57,6 +62,7 @@ def build_experiment_graph(
     builder.add_node("data_contract_agent", build_data_contract)
     builder.add_node("validation_agent", audit_validation)
     builder.add_node("temporal_validation_leakage_auditor", audit_temporal_validation)
+    builder.add_node("adversarial_trainer_agent", adversarial_trainer_agent)
     builder.add_node("eda_agent", inspect_eda)
     builder.add_node("domain_target_decomposition_agent", analyze_domain_decomposition)
     builder.add_node(
@@ -64,11 +70,15 @@ def build_experiment_graph(
         create_literature_research_node(resolved_research_agent),
     )
     builder.add_node("experiment_memory_agent", inspect_experiment_memory)
+    builder.add_node("long_tail_scout_agent", long_tail_scout_agent)
     builder.add_node("model_scout", scout_models)
+    builder.add_node("meta_strategy_planner", meta_strategy_planner)
     builder.add_node("portfolio_planner", create_portfolio_node(resolved_planner))
+    builder.add_node("deep_feature_synthesizer_agent", deep_feature_synthesizer_agent)
     builder.add_node("feature_engineer", engineer_features)
     builder.add_node("model_engineer", engineer_model)
     builder.add_node("experiment_runner", run_experiment_candidate)
+    builder.add_node("optuna_optimizer_agent", optuna_optimizer_agent)
     builder.add_node("result_critic", critique_result)
     builder.add_node("oof_ensemble_scientist", assess_oof_ensemble)
     builder.add_node("robustness_uncertainty_agent", assess_robustness_uncertainty)
@@ -83,16 +93,21 @@ def build_experiment_graph(
     builder.add_edge("problem_formulation_agent", "data_contract_agent")
     builder.add_edge("data_contract_agent", "validation_agent")
     builder.add_edge("validation_agent", "temporal_validation_leakage_auditor")
-    builder.add_edge("temporal_validation_leakage_auditor", "eda_agent")
+    builder.add_edge("temporal_validation_leakage_auditor", "adversarial_trainer_agent")
+    builder.add_edge("adversarial_trainer_agent", "eda_agent")
     builder.add_edge("eda_agent", "domain_target_decomposition_agent")
     builder.add_edge("domain_target_decomposition_agent", "literature_research_agent")
     builder.add_edge("literature_research_agent", "experiment_memory_agent")
-    builder.add_edge("experiment_memory_agent", "model_scout")
-    builder.add_edge("model_scout", "portfolio_planner")
-    builder.add_edge("portfolio_planner", "feature_engineer")
+    builder.add_edge("experiment_memory_agent", "long_tail_scout_agent")
+    builder.add_edge("long_tail_scout_agent", "model_scout")
+    builder.add_edge("model_scout", "meta_strategy_planner")
+    builder.add_edge("meta_strategy_planner", "portfolio_planner")
+    builder.add_edge("portfolio_planner", "deep_feature_synthesizer_agent")
+    builder.add_edge("deep_feature_synthesizer_agent", "feature_engineer")
     builder.add_edge("feature_engineer", "model_engineer")
     builder.add_edge("model_engineer", "experiment_runner")
-    builder.add_edge("experiment_runner", "result_critic")
+    builder.add_edge("experiment_runner", "optuna_optimizer_agent")
+    builder.add_edge("optuna_optimizer_agent", "result_critic")
     builder.add_conditional_edges(
         "result_critic",
         route_after_critique,

@@ -29,7 +29,7 @@ from swarmfold.capability_matrix import format_markdown_matrix
 from swarmfold.ensemble import PredictionRegistry, UnifiedEnsembleEngine
 from swarmfold.metrics import get_metric_spec
 
-AILaneId = Literal["ai-a", "ai-b", "ai-c", "ai-d", "ai-e"]
+AILaneId = Literal["ai-a", "ai-b", "ai-c", "ai-d", "ai-e", "ai-0", "ai-g", "ai-h", "ai-i", "ai-j"]
 
 LANE_DEFINITIONS: dict[str, dict[str, str]] = {
     "ai-a": {
@@ -50,7 +50,27 @@ LANE_DEFINITIONS: dict[str, dict[str, str]] = {
     },
     "ai-e": {
         "name": "Robustness Challenger",
-        "focus": "Imbalance, regularization, stability, and ensemble readiness.",
+        "focus": "Simulated distribution shifts, missingness, and outliers.",
+    },
+    "ai-0": {
+        "name": "Meta-Strategist",
+        "focus": "Dynamic budget reallocation based on dataset EDA.",
+    },
+    "ai-g": {
+        "name": "Diversity Miner",
+        "focus": "Long-tail scouting for non-correlated architectures.",
+    },
+    "ai-h": {
+        "name": "Deep Feature Synthesizer",
+        "focus": "Extreme genetic and polynomial feature expansions.",
+    },
+    "ai-i": {
+        "name": "Adversarial Auditor",
+        "focus": "Detects train/test covariate shift and leaks.",
+    },
+    "ai-j": {
+        "name": "HPO Grandmaster",
+        "focus": "Massive hyperparameter search via Optuna/Halving.",
     },
 }
 

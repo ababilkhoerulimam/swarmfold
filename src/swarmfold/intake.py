@@ -213,9 +213,9 @@ def _profile_prompt(inventory: list[dict[str, object]]) -> str:
         "fields must exactly match uploaded filenames or be null. Set brief_file to the one "
         "Markdown file that should govern the run; ask a question if it cannot be distinguished. "
         "Do not claim an experiment ran. "
-        "The current built-in execution adapter supports binary classification with mixed numeric "
-        "and categorical CSV features, string or numeric class labels, accuracy or ROC-AUC, one "
-        "labeled training file, one inference file, and one submission template; "
+        "The current built-in execution adapter supports binary, multiclass, and multilabel classification, "
+        "as well as regression and time-series forecasting, with mixed numeric and categorical CSV/Parquet features, "
+        "accuracy, ROC-AUC, or F1 metrics, one labeled training file, one inference file, and one submission template; "
         "other scenarios may be understood but must list the missing adapter as a blocker.\n\n"
         f"Uploaded bundle inventory:\n{json.dumps(inventory, ensure_ascii=False, default=str)}"
     )

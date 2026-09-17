@@ -21,8 +21,9 @@ This matrix defines the operational status of all modeling, feature, validation,
 | `soft_voting` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Probability-weighted voting ensemble |
 | `stacking` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Meta-learner stacked generalization |
 | `lightgbm` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Fast, distributed gradient boosting framework |
-| `xgboost` | **DECLARED (uninstalled dependency)** | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | Scalable, regularized gradient boosted trees |
-| `catboost` | **DECLARED (uninstalled dependency)** | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | Gradient boosting with categorical feature support |
+| `xgboost` | **OPERATIONAL** (`uv sync --extra xgboost`) | ✅ | ⚙️ | ⚙️ | ⚙️ | ✅ | ✅ | Scalable, regularized gradient boosted trees. Eligible in lane AI-B once installed. |
+| `catboost` | **OPERATIONAL** (`uv sync --extra catboost`) | ✅ | ⚙️ | ⚙️ | ⚙️ | ✅ | ✅ | Gradient boosting with categorical feature support. Eligible in lane AI-B once installed. |
+
 
 ## Feature Engineering Strategies
 
@@ -57,8 +58,10 @@ This matrix defines the operational status of all modeling, feature, validation,
 | `binary_classification` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Two-class probability prediction |
 | `multiclass_classification` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Multi-category probability distribution |
 | `regression` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Continuous numeric target prediction |
-| `multilabel_classification` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Multi-label binary indicator matrix |
-| `time_series_forecasting` | **OPERATIONAL** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Sequential multi-horizon forecasting |
+| `multilabel_classification` | **ADAPTER_ONLY** (dashboard gate blocked) | ✅ | ✅ | ⚠️ | ❌ | ⚠️ | ❌ | Multi-label binary indicator matrix. Adapter, stacking, and ensemble engine are complete. End-to-end execution fixture and dashboard enablement are pending. |
+| `time_series_forecasting` | **ADAPTER_ONLY** (dashboard gate blocked) | ✅ | ✅ | ⚠️ | ❌ | ⚠️ | ❌ | Sequential multi-horizon forecasting. Adapter and stacking meta-model are complete. End-to-end execution fixture and dashboard enablement are pending. |
+
+
 
 ## Evaluation Metrics
 

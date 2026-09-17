@@ -3,31 +3,37 @@
   <p><strong>Distributed multi-agent experimentation for data science competitions</strong></p>
 
   <p align="center">
-    <img src="https://img.shields.io/badge/Stage-Design-blue?style=flat-square" alt="Project stage">
-    <img src="https://img.shields.io/badge/Topology-5_AI_Lanes-success?style=flat-square" alt="Five AI lanes">
+    <img src="https://img.shields.io/badge/Stage-Beta-blue?style=flat-square" alt="Project stage">
+    <img src="https://img.shields.io/badge/Topology-10_AI_Lanes-success?style=flat-square" alt="Ten AI lanes">
     <img src="https://img.shields.io/badge/Control-Human_Gated-purple?style=flat-square" alt="Human control plane">
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
   </p>
 
   <p align="center">
-    SwarmFold coordinates five behavior-specific AI modeling lanes under one human control plane. Every iteration produces one complete evidence package and a reusable knowledge report for the next search cycle.
+    SwarmFold coordinates ten behavior-specific AI modeling lanes under one human control plane. Every iteration produces one complete evidence package and a reusable knowledge report for the next search cycle.
   </p>
 </div>
 
 ## Current Status
 
-SwarmFold operates on a production **five-AI local portfolio** topology under human control:
+SwarmFold operates on a production **five-AI local portfolio** topology under human control. The following capabilities are **operational** end-to-end through the default dashboard workflow:
+
 - **Intake & Modality Guard**: Automatically profiles arbitrary competition bundles (Parquet, CSV, TSV) and blocks unsupported modalities (audio, video, raw images) before training.
 - **Human Confirmation Gate**: Locks the immutable problem contract, target, metric, and validation strategy before compute begins.
 - **Five Specialized AI Modeling Lanes**:
   - **AI A (Conservative Scientist)**: Stable linear and tree baselines, sanity checks, low-variance models.
-  - **AI B (Boosting Specialist)**: Regularized tree ensembles (HistGBM, LightGBM, XGBoost, CatBoost) and bounded HPO.
+  - **AI B (Boosting Specialist)**: Regularized tree ensembles (HistGBM, LightGBM, XGBoost, CatBoost) with adaptive HPO via `HPOController` — parameters are sampled from a persistent study and pruned by fold-level median performance.
   - **AI C (Feature Scientist)**: Feature engineering, TF-IDF text representations, and ablation studies.
   - **AI D (Alternative Explorer)**: Prediction diversity, extra trees, and alternative geometric models.
   - **AI E (Robustness Challenger)**: Seed stability, stress tests, and intra-lane bagging/stacking.
-- **Self-Healing Execution**: Automatic error classification (OOM, invalid parameters, numerical instability), parameter/feature repair, and fold-level checkpoint resumption.
-- **Unified OOF Ensemble Engine**: Reconstructs out-of-fold predictions, validates alignment, evaluates equal-weight and pair-blend ensembles, and gatekeeps adoption against the best single model.
-- **Atomic Full Package**: Every run publishes a self-contained `full-package.zip` with complete lineage, reproduction notebook, manifest hashes, and reusable priors for iteration N+1.
+- **Adaptive Scheduling**: `AdaptiveScheduler` reorders the experiment queue after every completed trial, prioritising models with positive marginal contribution.
+- **Technique Retrieval**: `TechniqueRetriever` performs role-scoped RAG from 468 canonical knowledge cards before each scouting call; results are mapped to a typed `TechniquePlan` with runtime registry references.
+- **Self-Healing Execution**: Automatic error classification (OOM, invalid parameters, numerical instability, data shape), parameter/feature repair, fold-level checkpoint resumption. Provider and network failures receive bounded exponential backoff retries (max 3, 1 s → 2 s → 4 s) before an experiment is marked FAILED.
+- **Unified OOF Ensemble Engine**: Caruana greedy selection, SLSQP constrained blending, cross-fitted stacking (binary, multiclass, multilabel, regression, and time-series forecasting), and weighted averaging. Champion Gate rejects any ensemble that does not strictly improve over the best validated single model.
+- **Iteration Reflection**: `IterationReflector` generates per-iteration structured insights that are stored and forwarded as prior knowledge to the next run, enabling cross-iteration learning without reusing a champion blindly.
+- **Atomic Full Package**: Every run publishes a self-contained `full-package.zip` with complete lineage, OOF predictions, ensemble reconstruction metadata, reproduction notebook, manifest hashes, and reusable priors for iteration N+1.
+
+> **Multilabel classification** and **time-series forecasting** have typed adapters and ensemble support but are blocked at the dashboard confirmation gate pending complete end-to-end execution fixtures.
 
 See the complete [Capability Matrix](docs/capability_matrix.md) for current component lifecycle states.
 
@@ -39,7 +45,24 @@ uv run swarmfold run-demo
 uv run pytest
 ```
 
+### Installing Optional Boosting Libraries
+
+XGBoost, CatBoost, and LightGBM are optional extras. Install them to unlock their candidates in lane AI-B:
+
+```bash
+# Install all boosting libraries at once
+uv sync --extra boosting
+
+# Or individually
+uv sync --extra lightgbm   # LightGBM only
+uv sync --extra xgboost    # XGBoost only
+uv sync --extra catboost   # CatBoost only
+```
+
+Once installed, the `CandidateFactory` eligibility check (`installed=True, executable=True`) will automatically include them in AI-B's search.
+
 The demo executes the local pod from contract inspection through portfolio search, result criticism, evidence verification, and atomic publication. Candidate packets include a fixture submission file plus the complete experiment ledger and findings; failure packets never fabricate a submission. Mock planning does not require an API key.
+
 
 ## Primary Architecture: Five-AI Local Portfolio
 
@@ -128,8 +151,9 @@ In this mode, three physical laptops run independent pods alongside three human 
 
 - Each laptop attempts the entire competition workflow and publishes one verified terminal lane packet. Successful runs contain a candidate; failed or waived runs preserve their evidence without fabricating one.
 - AI outputs are proposals until deterministic tools verify them.
+- SwarmFold now features a 10-Lane Grandmaster architecture, adding 5 new autonomous nodes: Meta-Strategist, Diversity Miner, Deep Feature Synthesizer, Adversarial Auditor, and HPO Grandmaster.
 - All lanes share the same data, metric, and validation contracts.
-- Search charters keep the six lanes meaningfully different.
+- Search charters keep the lanes meaningfully different.
 - Local validation remains the primary selection evidence.
 - Failed experiments remain searchable so later agents do not repeat them.
 - Submission upload remains behind a human gate and competition-rule check.

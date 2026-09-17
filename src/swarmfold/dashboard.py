@@ -242,6 +242,8 @@ class DashboardRunManager:
             "binary_classification",
             "multiclass_classification",
             "regression",
+            "multilabel_classification",
+            "time_series_forecasting",
         }
         if profile.task_type not in executable_tasks:
             raise ValueError(

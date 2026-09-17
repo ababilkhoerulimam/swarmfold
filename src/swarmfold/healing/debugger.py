@@ -9,19 +9,43 @@ from swarmfold.schemas import ExperimentProposal
 class SelfHealingDebugger:
     """Bounded, deterministic debugger for automated experiment recovery."""
 
-    def __init__(self, max_retries: int = 2) -> None:
+    def __init__(self, max_retries: int = 2, max_provider_retries: int = 3) -> None:
         self.max_retries = max_retries
+        self.max_provider_retries = max_provider_retries
         self.retry_counts: dict[str, int] = {}
+        self.provider_retry_counts: dict[str, int] = {}
         self.repair_history: list[dict[str, Any]] = []
 
     def can_repair(self, proposal_id: str, failure: FailureRecord) -> bool:
-        """Check whether a failure can be repaired within the bounded retry budget."""
+        """Check whether a training failure can be repaired within the bounded retry budget."""
         if not failure.recoverable:
             return False
         if failure.kind == FailureKind.PROVIDER_OR_NETWORK_FAILURE:
             return False
         current_attempts = self.retry_counts.get(proposal_id, 0)
         return current_attempts < self.max_retries
+
+    def can_retry_provider(self, proposal_id: str, failure: FailureRecord) -> bool:
+        """Check whether a provider/network failure can be retried with exponential backoff.
+
+        Provider retries are tracked separately from training parameter repairs so that
+        a network hiccup does not consume the training repair budget.
+        """
+        if failure.kind != FailureKind.PROVIDER_OR_NETWORK_FAILURE:
+            return False
+        current_attempts = self.provider_retry_counts.get(proposal_id, 0)
+        return current_attempts < self.max_provider_retries
+
+    def get_provider_backoff_seconds(self, proposal_id: str) -> float:
+        """Return the backoff duration for the next provider retry attempt.
+
+        Uses bounded exponential backoff: 1s → 2s → 4s (capped at 30s).
+        Increments the retry counter as a side-effect.
+        """
+        attempt = self.provider_retry_counts.get(proposal_id, 0)
+        self.provider_retry_counts[proposal_id] = attempt + 1
+        return min(2.0 ** attempt, 30.0)
+
 
     def attempt_repair(
         self,

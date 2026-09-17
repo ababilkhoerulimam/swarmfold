@@ -661,6 +661,7 @@
               <div class="lane" data-lane="ai-c"><span class="lane-dot"></span>AI C</div>
               <div class="lane" data-lane="ai-d"><span class="lane-dot"></span>AI D</div>
               <div class="lane" data-lane="ai-e"><span class="lane-dot"></span>AI E</div>
+              <div class="lane" data-lane="ai-f" style="color: #5d6e8a; opacity: 0.8;"><span class="lane-dot" style="border-color: #5d6e8a;"></span>AI F</div>
             </div>
             <div class="tracks">
               <div class="track" data-track="ai-a"></div>
@@ -668,6 +669,7 @@
               <div class="track" data-track="ai-c"></div>
               <div class="track" data-track="ai-d"></div>
               <div class="track" data-track="ai-e"></div>
+              <div class="track" data-track="ai-f"></div>
             </div>
             <div class="gate-list">
               <div class="gate" data-lane-state="ai-a">Standby</div>
@@ -675,6 +677,7 @@
               <div class="gate" data-lane-state="ai-c">Standby</div>
               <div class="gate" data-lane-state="ai-d">Standby</div>
               <div class="gate" data-lane-state="ai-e">Standby</div>
+              <div class="gate" data-lane-state="ai-f">Standby</div>
             </div>
           </div>
 
@@ -795,7 +798,12 @@
       ["ai-b", "AI B", "Boosting Specialist", "Tree ensemble dan tuning nonlinear"],
       ["ai-c", "AI C", "Feature Scientist", "Representasi dan seleksi fitur"],
       ["ai-d", "AI D", "Alternative Explorer", "Model alternatif dan prediction diversity"],
-      ["ai-e", "AI E", "Robustness Challenger", "Stabilitas, imbalance, dan ensemble"]
+      ["ai-e", "AI E", "Robustness Challenger", "Stabilitas, imbalance, dan ensemble"],
+      ["ai-0", "AI 0", "Meta-Strategist", "Dynamic budget reallocation"],
+      ["ai-g", "AI G", "Diversity Miner", "Long-tail scouting"],
+      ["ai-h", "AI H", "Deep Feature Synthesizer", "Extreme feature expansions"],
+      ["ai-i", "AI I", "Adversarial Auditor", "Covariate shift detection"],
+      ["ai-j", "AI J", "HPO Grandmaster", "Massive hyperparameter search"]
     ];
     const login = document.getElementById("login");
     const loginError = document.getElementById("login-error");
@@ -804,10 +812,14 @@
       const container = document.getElementById("lane-configs");
       container.innerHTML = laneDefinitions.map(([id, label, name, focus]) => `<article class="lane-config" data-lane="${id}">
         <input class="lane-toggle" type="checkbox" data-lane-enabled="${id}" checked aria-label="Aktifkan ${label}">
-        <div class="lane-config-copy"><strong>${label} · ${name}</strong><small>${focus}</small></div>
+        <div class="lane-config-copy"><strong>${label} &middot; ${name}</strong><small>${focus}</small></div>
         <div class="lane-budget"><label for="budget-${id}">Eksperimen</label><input id="budget-${id}" type="number" value="5" min="5" max="100" data-lane-budget="${id}"></div>
-      </article>`).join("");
-      container.querySelectorAll("input").forEach(input => input.addEventListener("change", updatePortfolioConfig));
+      </article>`).join("") + `<article class="lane-config" data-lane="ai-f" style="--lane-color: #5d6e8a;">
+        <input class="lane-toggle" name="ensemble_enabled" value="true" type="checkbox" checked aria-label="Aktifkan AI F">
+        <div class="lane-config-copy"><strong>AI F &middot; OOF Ensemble Scientist</strong><small>Cross-validation stacking dan blending</small></div>
+        <div class="lane-budget"><label>Eksperimen</label><input type="text" value="Otomatis" disabled style="color: var(--ink-soft); background: var(--white); text-align: center; font-size: 11px; padding-left: 0; padding-right: 0;"></div>
+      </article>`;
+      container.querySelectorAll("input[type=number], input.lane-toggle").forEach(input => input.addEventListener("change", updatePortfolioConfig));
       updatePortfolioConfig();
     }
 
@@ -821,7 +833,7 @@
       const enabled = lanes.filter(lane => lane.enabled);
       const total = enabled.reduce((sum, lane) => sum + lane.max_experiments, 0);
       document.getElementById("lane-config-values").value = JSON.stringify(lanes);
-      document.getElementById("enabled-summary").textContent = `${enabled.length} AI aktif`;
+      document.getElementById("enabled-summary").textContent = `${enabled.length + 1} AI aktif`;
       document.getElementById("budget-summary").textContent = `Target ${total} eksperimen`;
       document.getElementById("run-button").disabled = enabled.length === 0 || total > 200;
       return { lanes, enabled, total };
@@ -957,6 +969,27 @@
         if (track && laneStatus === "RUNNING") track.classList.add("active");
         if (laneState) laneState.textContent = laneStatus;
       });
+      // Handle AI F (Ensemble Scientist)
+      const ensembleEnabled = record.ensemble_enabled !== false;
+      const fLane = document.querySelector(`.lane[data-lane="ai-f"]`);
+      const fTrack = document.querySelector(`[data-track="ai-f"]`);
+      const fState = document.querySelector(`[data-lane-state="ai-f"]`);
+      let fStatus = "DISABLED";
+      if (ensembleEnabled) {
+        if (["PROFILING", "AWAITING_CONFIRMATION", "READY_TO_TRAIN", "QUEUED"].includes(status)) fStatus = "PLANNED";
+        else if (status === "TRAINING") {
+           // If lanes are all done, AI F is running, else it's pending.
+           const lanesRunning = (record.lanes || []).some(l => ["QUEUED", "RUNNING"].includes(l.status));
+           fStatus = lanesRunning ? "PENDING" : "RUNNING";
+        }
+        else if (status === "COMPLETED") fStatus = "ACCEPTED";
+        else if (status === "FAILED") fStatus = "FAILED";
+      }
+      if (["ACCEPTED", "FAILED"].includes(fStatus)) fLane?.classList.add("done");
+      if (["PLANNED", "PENDING", "RUNNING"].includes(fStatus)) fLane?.classList.add("active");
+      if (fTrack && fStatus === "RUNNING") fTrack.classList.add("active");
+      if (fState) fState.textContent = fStatus;
+
       const steps = [...document.querySelectorAll(".flow-step")];
       steps.forEach(step => step.classList.remove("active", "done"));
       if (status === "PROFILING") {

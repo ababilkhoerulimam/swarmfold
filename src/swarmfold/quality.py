@@ -1,5 +1,7 @@
 import csv
+import datetime
 from itertools import combinations
+
 from pathlib import Path
 
 import numpy as np
@@ -74,10 +76,12 @@ def formulate_problem(state: ExperimentState) -> ExperimentState:
 
     recommended_strategy = val_rec.recommended_strategy
 
-    supported_task = prediction_structure != "temporal" and task_type in (
+    supported_task = task_type in (
         "binary_classification",
         "multiclass_classification",
         "regression",
+        "multilabel_classification",
+        "time_series_forecasting",
     )
 
     report = {
@@ -214,6 +218,12 @@ def analyze_domain_decomposition(state: ExperimentState) -> ExperimentState:
 
 
 def assess_oof_ensemble(state: ExperimentState) -> ExperimentState:
+    """Agent F — OOF Ensemble Scientist.
+
+    Assesses whether any intra-lane ensemble candidate improves over the best base model.
+    Writes agent-f-assessment.json to output_dir so this stage has a distinct,
+    observable lifecycle artifact on disk and in the UI.
+    """
     contracts = ContractBundle.model_validate(state["contracts"])
     metric_name = contracts.metric.metric_name
     metric_spec = get_metric_spec(metric_name)
@@ -264,8 +274,16 @@ def assess_oof_ensemble(state: ExperimentState) -> ExperimentState:
     else:
         decision = "REJECTED"
     report = {
+        "stage": "oof_ensemble_scientist",
+        "stage_label": "Agent F — OOF Ensemble Scientist",
+        "timestamp": datetime.datetime.now(tz=datetime.timezone.utc).isoformat(),
+        "iteration_id": state.get("iteration_id", ""),
+        "lane_id": state.get("lane_id", ""),
+        "metric_name": metric_name,
         "decision": decision,
         "eligible_members": [item.experiment_id for item in base_results],
+        "candidate_count": len(base_results),
+        "ensemble_candidate_count": len(ensemble_results),
         "similarities": similarities,
         "best_base_score": best_base_score,
         "ensemble_score": ensemble_score,
@@ -273,10 +291,21 @@ def assess_oof_ensemble(state: ExperimentState) -> ExperimentState:
         "selection_rule": "Ensemble must beat the best base model on the identical holdout.",
         "limitation": "This release has one holdout, so nested OOF weight learning is unavailable.",
     }
+
+    # Persist artifact so Agent F has a distinct, observable lifecycle stage on disk.
+    output_dir = state.get("output_dir")
+    if output_dir:
+        artifact_path = Path(output_dir) / "agent-f-assessment.json"
+        try:
+            write_json(artifact_path, report)
+        except OSError:
+            pass  # Non-fatal: state is the source of truth; disk write is observability only.
+
     return {
         "ensemble_assessment": report,
         **_with_report(state, "oof_ensemble_scientist", report),
     }
+
 
 
 def assess_robustness_uncertainty(state: ExperimentState) -> ExperimentState:

@@ -756,6 +756,14 @@ def run_experiment_candidate(state: ExperimentState) -> ExperimentState:
             except Exception:
                 resource_usage = {}
             failure_record = classify_failure(exc)
+
+            # Provider/network failures get bounded exponential backoff retries,
+            # separate from the training parameter repair budget.
+            if debugger.can_retry_provider(root_experiment_id, failure_record):
+                backoff = debugger.get_provider_backoff_seconds(root_experiment_id)
+                time.sleep(backoff)
+                continue
+
             if debugger.can_repair(root_experiment_id, failure_record):
                 repaired_proposal, action = debugger.attempt_repair(proposal, failure_record)
                 failure_record.repair_action = action
@@ -780,6 +788,7 @@ def run_experiment_candidate(state: ExperimentState) -> ExperimentState:
                 original_experiment_id=root_experiment_id,
             )
             break
+
 
     cache_path = _result_cache_path(state, proposal)
     write_json(cache_path, result.model_dump())

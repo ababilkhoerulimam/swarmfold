@@ -77,6 +77,12 @@ def test_failure_taxonomy_classification() -> None:
     assert net_record.recoverable is True
     assert net_record.details["retry_domain"] == "provider_operation"
     assert SelfHealingDebugger().can_repair("provider-call", net_record) is False
+    # can_retry_provider should allow retries (up to max)
+    debugger_prov = SelfHealingDebugger(max_provider_retries=3)
+    assert debugger_prov.can_retry_provider("provider-call", net_record) is True
+    # Training repair budget is unaffected by provider retry
+    assert debugger_prov.can_repair("provider-call", net_record) is False
+
 
     # 8. Artifact verification
     art_exc = ValueError("Artifact verification failed: hash mismatch")
@@ -501,3 +507,59 @@ def test_node_resource_budget_exceeded(tmp_path: Path) -> None:
     assert result["status"] == "FAILED"
     assert "Resource limit exceeded for fold_0_duration_seconds" in result["error"]
     assert result["failure_record"]["kind"] == "timeout_or_stalled"
+
+
+def test_provider_retry_budget() -> None:
+    """SelfHealingDebugger should enforce provider retry budget and produce correct backoff."""
+    failure = FailureRecord(
+        kind=FailureKind.PROVIDER_OR_NETWORK_FAILURE,
+        exception_type="ConnectionError",
+        message="network unreachable",
+        recoverable=True,
+        details={"retry_domain": "provider_operation"},
+    )
+    oom_failure = FailureRecord(
+        kind=FailureKind.OUT_OF_MEMORY,
+        exception_type="MemoryError",
+        message="oom",
+        recoverable=True,
+    )
+
+    debugger = SelfHealingDebugger(max_retries=2, max_provider_retries=3)
+    pid = "exp-net-001"
+
+    # First 3 calls: eligible
+    assert debugger.can_retry_provider(pid, failure) is True
+    b0 = debugger.get_provider_backoff_seconds(pid)  # increments to 1
+    assert debugger.can_retry_provider(pid, failure) is True
+    b1 = debugger.get_provider_backoff_seconds(pid)  # increments to 2
+    assert debugger.can_retry_provider(pid, failure) is True
+    b2 = debugger.get_provider_backoff_seconds(pid)  # increments to 3
+    # Budget exhausted
+    assert debugger.can_retry_provider(pid, failure) is False
+
+    # Backoff should be 1s, 2s, 4s (bounded exponential)
+    assert b0 == pytest.approx(1.0)
+    assert b1 == pytest.approx(2.0)
+    assert b2 == pytest.approx(4.0)
+
+    # Training repair budget must be independent of provider retry count
+    assert debugger.can_repair(pid, oom_failure) is True
+
+    # Non-provider failures must not match can_retry_provider
+    assert debugger.can_retry_provider(pid, oom_failure) is False
+
+
+def test_provider_backoff_cap() -> None:
+    """Backoff must cap at 30 s regardless of retry count."""
+    debugger = SelfHealingDebugger(max_provider_retries=10)
+    pid = "exp-net-002"
+    for _ in range(10):
+        debugger.get_provider_backoff_seconds(pid)
+    # After 10 increments (2^10 = 1024), result must be capped at 30
+    debugger2 = SelfHealingDebugger(max_provider_retries=20)
+    pid2 = "exp-net-003"
+    # Manually set high count to verify cap
+    debugger2.provider_retry_counts[pid2] = 10
+    assert debugger2.get_provider_backoff_seconds(pid2) == pytest.approx(30.0)
+

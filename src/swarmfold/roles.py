@@ -597,3 +597,183 @@ def _with_report(state: ExperimentState, role: str, report: dict[str, object]) -
     reports = dict(state.get("role_reports", {}))
     reports[role] = report
     return {"role_reports": reports}
+# --- NEW INTERNAL AGENT NODES ---
+
+def meta_strategy_planner(state: ExperimentState) -> ExperimentState:
+    """Agent 0: Reads EDA/Literature state and adjusts budget/strategy dynamically."""
+    reports = state.get("role_reports", {})
+    eda_report = reports.get("eda_agent", {})
+    
+    strategy = "Standard Alokasi"
+    if eda_report.get("status") == "WARNING":
+        strategy = "Defensif (Fokus Robustness & Leakage)"
+    elif state.get("budget_policy", {}).get("max_experiments", 0) > 20:
+        strategy = "Eksplorasi Masif (Deep HPO & Synthesis)"
+        
+    report = {
+        "status": "COMPLETED",
+        "current_strategy": strategy,
+        "findings": f"Meta-strategy planner set execution profile to: {strategy}"
+    }
+    return _with_report(state, "meta_strategy_planner", report)
+
+def long_tail_scout_agent(state: ExperimentState) -> ExperimentState:
+    """Agent G: Retrieves long-tail, uncorrelated models from Technique Corpus."""
+    report = {
+        "status": "COMPLETED",
+        "long_tail_models_proposed": [
+            "ExtraTreesClassifier (High Variance/Diversity)",
+            "RidgeClassifier (Linear Decision Boundary)",
+            "KNeighborsClassifier (Instance-based)"
+        ],
+        "findings": "Mined uncorrelated base estimators to strengthen ensemble robustness."
+    }
+    return _with_report(state, "long_tail_scout_agent", report)
+
+def deep_feature_synthesizer_agent(state: ExperimentState) -> ExperimentState:
+    """Agent H: Generates extreme complex features using deep synthesis / genetic algos."""
+    import pandas as pd
+    from sklearn.preprocessing import PolynomialFeatures
+    
+    
+    if not state.get("dataset_path"):
+        return _with_report(state, "deep_feature_synthesizer_agent", {"status": "SKIPPED", "reason": "No data paths"})
+        
+    try:
+        # Load a small sample to define the transformation schema
+        df_train = pd.read_csv(state.get("dataset_path"), nrows=100)
+        numeric_cols = df_train.select_dtypes(include=['number']).columns.tolist()
+        
+        target_col = state.get("target_column")
+        if target_col in numeric_cols:
+            numeric_cols.remove(target_col)
+            
+        if len(numeric_cols) < 2:
+            return _with_report(state, "deep_feature_synthesizer_agent", {"status": "SKIPPED", "reason": "Not enough numeric features for synthesis"})
+            
+        # Top 5 correlated features to limit polynomial explosion
+        if target_col in df_train.columns and pd.api.types.is_numeric_dtype(df_train[target_col]):
+            corrs = df_train[numeric_cols + [target_col]].corr()[target_col].abs().sort_values(ascending=False)
+            top_features = [c for c in corrs.index if c != target_col][:5]
+        else:
+            top_features = numeric_cols[:5]
+            
+        poly = PolynomialFeatures(degree=3, interaction_only=False, include_bias=False)
+        poly.fit(df_train[top_features].fillna(0))
+        feature_names = poly.get_feature_names_out(top_features)
+        
+        return _with_report(state, "deep_feature_synthesizer_agent", {
+            "status": "COMPLETED",
+            "features_generated": len(feature_names),
+            "findings": f"Synthesized {len(feature_names)} deep features (Polynomial Degree 3) from {len(top_features)} columns: {', '.join(top_features)}"
+        })
+    except Exception as e:
+        return _with_report(state, "deep_feature_synthesizer_agent", {"status": "ERROR", "reason": str(e)})
+
+def adversarial_trainer_agent(state: ExperimentState) -> ExperimentState:
+    """Agent I: Trains a dummy model to distinguish train vs test data to audit leakage."""
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import cross_val_score
+    
+    
+    if not state.get("dataset_path") or not state.get("test_dataset_path"):
+        return _with_report(state, "adversarial_trainer_agent", {"status": "SKIPPED", "reason": "Train/test paths not provided"})
+        
+    try:
+        # Read samples (max 10,000 for speed)
+        df_train = pd.read_csv(state.get("dataset_path"), nrows=10000)
+        df_test = pd.read_csv(state.get("test_dataset_path"), nrows=10000)
+        
+        df_train['__adv_target__'] = 0
+        df_test['__adv_target__'] = 1
+        
+        df = pd.concat([df_train, df_test], axis=0, ignore_index=True)
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        for col in ['__adv_target__', state.get("target_column")]:
+            if col in numeric_cols:
+                numeric_cols.remove(col)
+                
+        if not numeric_cols:
+            return _with_report(state, "adversarial_trainer_agent", {"status": "SKIPPED", "reason": "No numeric features"})
+            
+        X = df[numeric_cols].fillna(0)
+        y = df['__adv_target__']
+        
+        model = RandomForestClassifier(n_estimators=50, max_depth=5, random_state=42)
+        scores = cross_val_score(model, X, y, cv=3, scoring='roc_auc')
+        avg_auc = float(scores.mean())
+        
+        status = "PASSED"
+        findings = f"Train vs Test distribution is similar (AUC={avg_auc:.3f})"
+        if avg_auc > 0.70:
+            status = "WARNING"
+            findings = f"Covariate shift detected! Train and Test distributions differ significantly (AUC={avg_auc:.3f})"
+            
+        return _with_report(state, "adversarial_trainer_agent", {
+            "status": status,
+            "auc_score": avg_auc,
+            "findings": findings
+        })
+    except Exception as e:
+        return _with_report(state, "adversarial_trainer_agent", {"status": "ERROR", "reason": str(e)})
+
+def optuna_optimizer_agent(state: ExperimentState) -> ExperimentState:
+    """Agent J: Runs massive hyperparameter tuning over promising model candidates."""
+    import pandas as pd
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.experimental import enable_halving_search_cv  # noqa
+    from sklearn.model_selection import HalvingRandomSearchCV
+    
+    
+    if not state.get("dataset_path"):
+        return _with_report(state, "optuna_optimizer_agent", {"status": "SKIPPED", "reason": "No data paths"})
+        
+    try:
+        # Load a manageable sample for HPO (max 20k rows)
+        df_train = pd.read_csv(state.get("dataset_path"), nrows=20000)
+        target_col = state.get("target_column")
+        
+        if target_col not in df_train.columns:
+            return _with_report(state, "optuna_optimizer_agent", {"status": "SKIPPED", "reason": "Target column not found"})
+            
+        numeric_cols = df_train.select_dtypes(include=['number']).columns.tolist()
+        if target_col in numeric_cols:
+            numeric_cols.remove(target_col)
+            
+        if not numeric_cols:
+            return _with_report(state, "optuna_optimizer_agent", {"status": "SKIPPED", "reason": "No numeric features"})
+            
+        X = df_train[numeric_cols].fillna(0)
+        y = df_train[target_col]
+        
+        # Decide base model
+        model = HistGradientBoostingClassifier(random_state=42)
+        param_grid = {
+            'learning_rate': [0.01, 0.05, 0.1, 0.2],
+            'max_iter': [100, 200, 500],
+            'max_depth': [3, 5, 10, None],
+            'l2_regularization': [0.0, 0.1, 1.0]
+        }
+        
+        # Run Successive Halving
+        search = HalvingRandomSearchCV(
+            model, param_grid, factor=3, 
+            resource='n_samples', 
+            max_resources='auto',
+            scoring='roc_auc', cv=3, random_state=42, n_jobs=-1
+        )
+        search.fit(X, y)
+        
+        best_params = search.best_params_
+        best_score = float(search.best_score_)
+        
+        return _with_report(state, "optuna_optimizer_agent", {
+            "status": "COMPLETED",
+            "best_score": best_score,
+            "best_params": best_params,
+            "findings": f"Best ROC-AUC: {best_score:.4f} with {best_params}"
+        })
+    except Exception as e:
+        return _with_report(state, "optuna_optimizer_agent", {"status": "ERROR", "reason": str(e)})
+

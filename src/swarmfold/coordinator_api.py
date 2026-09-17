@@ -192,9 +192,10 @@ def create_coordinator_app(
         max_experiments: Annotated[int, Form(ge=5, le=100)] = 5,
         max_training_seconds: Annotated[float | None, Form(gt=0)] = None,
         iteration_id: Annotated[str, Form(min_length=1, max_length=128)] = "local-iteration",
-        lane_id: Annotated[Literal["ai-a", "ai-b", "ai-c", "ai-d", "ai-e"], Form()] = "ai-a",
+        lane_id: Annotated[Literal["ai-a", "ai-b", "ai-c", "ai-d", "ai-e", "ai-0", "ai-g", "ai-h", "ai-i", "ai-j"], Form()] = "ai-a",
         lane_configs: Annotated[str | None, Form()] = None,
         max_concurrent_lanes: Annotated[int, Form(ge=1, le=5)] = 2,
+        ensemble_enabled: Annotated[bool, Form()] = False,
     ) -> dict[str, object]:
         if not files or len(files) > _MAX_UI_FILES:
             raise HTTPException(status_code=422, detail="Upload between 1 and 200 files")
@@ -237,9 +238,11 @@ def create_coordinator_app(
                 portfolio = PortfolioConfig(
                     lanes=json.loads(lane_configs),
                     max_concurrent_lanes=max_concurrent_lanes,
+                    ensemble_enabled=ensemble_enabled,
                 )
             else:
                 portfolio = single_lane_portfolio(lane_id, max_experiments)
+                portfolio.ensemble_enabled = ensemble_enabled
             return manager.create_intake(
                 run_id,
                 filenames=filenames,

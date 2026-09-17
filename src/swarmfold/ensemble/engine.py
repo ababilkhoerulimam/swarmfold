@@ -627,16 +627,19 @@ class UnifiedEnsembleEngine:
         pass_through_oof: np.ndarray | None = None,
         pass_through_test: np.ndarray | None = None,
     ) -> _EnsembleCandidate | None:
-        if self.task_type not in {
+        _STACKING_ELIGIBLE = {
             "binary_classification",
+            "multiclass_classification",
+            "multilabel_classification",
             "regression",
             "time_series_forecasting",
-        }:
+        }
+        if self.task_type not in _STACKING_ELIGIBLE:
             self.diagnostics.append(
                 {
                     "method": "stacking",
                     "status": "INELIGIBLE",
-                    "reason": f"Cross-fitted stacking is not implemented for {self.task_type}",
+                    "reason": f"Cross-fitted stacking is not supported for {self.task_type}",
                 }
             )
             return None
@@ -675,6 +678,12 @@ class UnifiedEnsembleEngine:
                     )
                 else:
                     blend_oof = meta_oof
+            elif self.task_type == "multiclass_classification":
+                # meta_oof is predicted label array from meta-model predict()
+                blend_oof = meta_oof
+            elif self.task_type == "multilabel_classification":
+                # meta_oof is a binary indicator matrix (n_samples, n_labels)
+                blend_oof = meta_oof
             else:
                 blend_oof = meta_oof
 
@@ -708,6 +717,7 @@ class UnifiedEnsembleEngine:
                     )
                     blend_test = raw_test
 
+
             artifact_evidence: dict[str, Any] = {}
             adoption_eligible = False
             if self.artifact_directory is not None and test_predictions is not None:
@@ -718,7 +728,11 @@ class UnifiedEnsembleEngine:
                         {
                             "row": [str(index) for index in range(len(meta_oof))],
                             "fold": stacker.meta_fold_ids_.tolist(),
-                            "prediction": np.asarray(meta_oof, dtype=float).tolist(),
+                            "prediction": (
+                                [json.dumps(row) for row in meta_oof.tolist()]
+                                if meta_oof.ndim > 1
+                                else np.asarray(meta_oof, dtype=float).tolist()
+                            ),
                         }
                     ),
                     self.artifact_directory / "meta-oof-predictions.parquet",

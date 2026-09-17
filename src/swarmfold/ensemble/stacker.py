@@ -9,6 +9,7 @@ import numpy as np
 from sklearn.base import clone
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.multioutput import MultiOutputClassifier
 
 
 class StackingEnsemble:
@@ -24,7 +25,11 @@ class StackingEnsemble:
         self.seed = seed
         self.cross_fit_splits = cross_fit_splits
         if task_type in {"regression", "time_series_forecasting"}:
-            self.meta_model: Ridge | LogisticRegression = Ridge(alpha=1.0)
+            self.meta_model: Ridge | LogisticRegression | MultiOutputClassifier = Ridge(alpha=1.0)
+        elif task_type == "multilabel_classification":
+            self.meta_model = MultiOutputClassifier(
+                LogisticRegression(C=1.0, max_iter=1000, random_state=seed)
+            )
         else:
             self.meta_model = LogisticRegression(C=1.0, max_iter=1000, random_state=seed)
         self.feature_count_: int | None = None
@@ -73,6 +78,11 @@ class StackingEnsemble:
             splits = min(self.cross_fit_splits, row_count)
             return KFold(n_splits=splits, shuffle=True, random_state=self.seed).split(targets)
 
+        # Multilabel: targets is a 2D indicator matrix — use KFold (no stratification)
+        if self.task_type == "multilabel_classification":
+            splits = min(self.cross_fit_splits, row_count)
+            return KFold(n_splits=splits, shuffle=True, random_state=self.seed).split(targets)
+
         _, counts = np.unique(targets, return_counts=True)
         splits = min(self.cross_fit_splits, int(counts.min()))
         if splits < 2:
@@ -84,7 +94,11 @@ class StackingEnsemble:
         if self.task_type == "binary_classification":
             probabilities = model.predict_proba(features)
             return probabilities[:, 1]
+        if self.task_type == "multilabel_classification":
+            # MultiOutputClassifier.predict returns a (n_samples, n_labels) int array
+            return np.asarray(model.predict(features))
         return np.asarray(model.predict(features))
+
 
     def cross_fit(
         self,
@@ -95,7 +109,14 @@ class StackingEnsemble:
         """Return held-out meta predictions, then fit the deployable final meta-model."""
         meta_features = self._build_meta_features(oof_predictions, pass_through_features)
         target_array = np.asarray(targets)
-        meta_oof = np.empty(len(target_array), dtype=float)
+        is_multilabel = self.task_type == "multilabel_classification"
+
+        if is_multilabel:
+            # target_array is (n_samples, n_labels); use object array to collect per-fold rows
+            n_labels = target_array.shape[1] if target_array.ndim == 2 else 1
+            meta_oof = np.zeros((len(target_array), n_labels), dtype=int)
+        else:
+            meta_oof = np.empty(len(target_array), dtype=float)
         fold_ids = np.full(len(target_array), -1, dtype=int)
 
         for fold_index, (train_indices, validation_indices) in enumerate(
@@ -106,7 +127,10 @@ class StackingEnsemble:
             fold_predictions = self._predict_for_metric(
                 fold_model, meta_features[validation_indices]
             )
-            meta_oof[validation_indices] = np.asarray(fold_predictions, dtype=float)
+            if is_multilabel:
+                meta_oof[validation_indices] = np.asarray(fold_predictions, dtype=int)
+            else:
+                meta_oof[validation_indices] = np.asarray(fold_predictions, dtype=float)
             fold_ids[validation_indices] = fold_index
 
         if np.any(fold_ids < 0):
@@ -117,6 +141,7 @@ class StackingEnsemble:
         self.pass_through_count_ = meta_features.shape[1] - self.feature_count_
         self.meta_fold_ids_ = fold_ids
         return meta_oof
+
 
     def fit(
         self,
@@ -173,14 +198,31 @@ class StackingEnsemble:
         return loaded
 
     def get_meta_params(self) -> dict[str, Any]:
-        classes = getattr(self.meta_model, "classes_", np.array([]))
+        # classes_: ndarray for single-output models, list of ndarrays for MultiOutputClassifier
+        raw_classes = getattr(self.meta_model, "classes_", np.array([]))
+        if isinstance(raw_classes, list):
+            classes_serial: list = [
+                arr.tolist() if hasattr(arr, "tolist") else list(arr) for arr in raw_classes
+            ]
+        else:
+            classes_serial = (
+                raw_classes.tolist() if hasattr(raw_classes, "tolist") else list(raw_classes)
+            )
+
+        def _to_list(attr: object) -> list:
+            if attr is None:
+                return []
+            if hasattr(attr, "tolist"):
+                return attr.tolist()  # type: ignore[union-attr]
+            return list(attr)
+
         return {
             "task_type": self.task_type,
             "seed": self.seed,
             "cross_fit_splits": self.cross_fit_splits,
             "feature_count": self.feature_count_,
             "pass_through_count": self.pass_through_count_,
-            "classes": classes.tolist(),
-            "coef": getattr(self.meta_model, "coef_", np.array([])).tolist(),
-            "intercept": getattr(self.meta_model, "intercept_", np.array([])).tolist(),
+            "classes": classes_serial,
+            "coef": _to_list(getattr(self.meta_model, "coef_", None)),
+            "intercept": _to_list(getattr(self.meta_model, "intercept_", None)),
         }

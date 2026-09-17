@@ -149,6 +149,7 @@ def run_experiment(
     lane_id: str = "ai-a",
     contracts: ContractBundle | dict[str, object] | None = None,
     prior_knowledge: list[dict[str, object]] | None = None,
+    step_callback=None,
 ) -> ExperimentState:
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
@@ -209,11 +210,13 @@ def run_experiment(
             raise ValueError(f"No checkpoint exists for thread_id '{resolved_thread_id}'")
         if not resume and thread_id is not None and existing is not None:
             raise ValueError(f"thread_id '{resolved_thread_id}' already exists; use resume=True")
-        graph.invoke(
+        for event in graph.stream(
             None if resume else initial_state,
             config,
             interrupt_before=[interrupt_before] if interrupt_before else None,
-        )
+        ):
+            if step_callback:
+                step_callback(event)
         snapshot = graph.get_state(config)
         result = dict(snapshot.values)
         if snapshot.next:

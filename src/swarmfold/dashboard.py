@@ -553,8 +553,17 @@ class DashboardRunManager:
     ) -> dict[str, Any]:
         self._set_lane_status(run_id, lane.lane_id, "RUNNING")
         prior_knowledge = self.get(run_id).get("prior_knowledge", [])
+        
+        def on_step(event):
+            try:
+                node = list(event.keys())[0]
+                self._set_lane_status(run_id, lane.lane_id, "RUNNING", current_node=node)
+            except Exception:
+                pass
+                
         return self.runner(
             dataset_path,
+            step_callback=on_step,
             target_column=target_column,
             output_dir=self.run_directory(run_id) / "lanes" / lane.lane_id,
             tracking_uri=self.tracking_uri,
@@ -572,12 +581,14 @@ class DashboardRunManager:
             prior_knowledge=prior_knowledge,
         )
 
-    def _set_lane_status(self, run_id: str, lane_id: str, status: str) -> None:
+    def _set_lane_status(self, run_id: str, lane_id: str, status: str, current_node: str | None = None) -> None:
         with self._lock:
             record = self._read_record(run_id)
             for lane in record["lanes"]:
                 if lane["lane_id"] == lane_id:
                     lane["status"] = status
+                    if current_node:
+                        lane["current_node"] = current_node
                     break
             record["updated_at"] = _now()
             self._write_record_unlocked(run_id, record)

@@ -564,7 +564,15 @@
     .dag-node.failed { border-color: #ef4444; background: #fef2f2; }
     .dag-arrow { color: #94a3b8; font-weight: 700; font-size: 14px; user-select: none; }
   </style>
-</head>
+
+    <style>
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; color: var(--blue-bold); }
+        100% { opacity: 1; }
+      }
+    </style>
+  </head>
 <body>
   <div class="login" id="login">
     <form class="login-card" id="login-form">

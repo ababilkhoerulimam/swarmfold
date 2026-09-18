@@ -86,12 +86,17 @@ class CandidateFactory:
         entry = self._capabilities.get(family)
         if entry is None:
             return False
+        
+        # Allow new lanes to use any eligible model by default, or specific rules later
+        new_lanes = {"ai-0", "ai-g", "ai-h", "ai-i", "ai-j"}
+        is_lane_recommended = lane_id in entry.get("recommended_lanes", ()) or lane_id in new_lanes
+
         return bool(
             entry.get("declared")
             and entry.get("installed")
             and entry.get("executable")
             and task_type in entry.get("task_types", ())
-            and lane_id in entry.get("recommended_lanes", ())
+            and is_lane_recommended
         )
 
     def _conservative(self, index: int, task_type: str) -> CandidateSpec:

@@ -526,6 +526,17 @@ def build_capability_matrix() -> list[CapabilityEntry]:
             "Lower is better (min 0.0)",
         ),
         (
+            "mape",
+            "Mean absolute percentage error for regression",
+            True,
+            True,
+            True,
+            True,
+            True,
+            True,
+            "Lower is better (min 0.0)",
+        ),
+        (
             "r2",
             "Coefficient of determination for regression",
             True,

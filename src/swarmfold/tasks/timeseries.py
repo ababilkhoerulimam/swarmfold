@@ -9,7 +9,7 @@ from swarmfold.candidates import CandidateSpec
 class TimeSeriesForecastingAdapter:
     task_type: str = "time_series_forecasting"
     default_metric: str = "rmse"
-    supported_metrics: frozenset[str] = frozenset({"rmse", "mae", "r2"})
+    supported_metrics: frozenset[str] = frozenset({"rmse", "mae", "mape", "r2"})
     recommended_validation_strategy: str = "purged_time_series"
     supported_model_families: frozenset[str] = frozenset(
         {

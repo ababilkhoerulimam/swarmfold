@@ -116,6 +116,15 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         minimum=0.0,
         maximum=None,
     ),
+    "mape": MetricSpec(
+        name="mape",
+        version="mape-v1",
+        direction="minimize",
+        prediction_kind="continuous",
+        task_types=_REGRESSION_LIKE,
+        minimum=0.0,
+        maximum=None,
+    ),
     "r2": MetricSpec(
         name="r2",
         version="r2-v1",

@@ -1032,6 +1032,15 @@ def _metric_from_predictions(path: Path, metric_name: str, positive_class: str |
                 [float(row["predicted"]) for row in rows],
             )
         )
+    if metric_name == "mape":
+        from sklearn.metrics import mean_absolute_percentage_error
+
+        return float(
+            mean_absolute_percentage_error(
+                [float(row["actual"]) for row in rows],
+                [float(row["predicted"]) for row in rows],
+            )
+        )
     if metric_name == "r2":
         from sklearn.metrics import r2_score
 
@@ -1379,6 +1388,9 @@ def _compute_metric(
         return float(np.sqrt(mean_squared_error(y_true, y_pred)))
     elif metric_name == "mae":
         return float(mean_absolute_error(y_true, y_pred))
+    elif metric_name == "mape":
+        from sklearn.metrics import mean_absolute_percentage_error
+        return float(mean_absolute_percentage_error(y_true, y_pred))
     elif metric_name == "r2":
         return float(r2_score(y_true, y_pred))
     elif metric_name == "multilabel_f1":

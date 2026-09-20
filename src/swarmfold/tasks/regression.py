@@ -9,7 +9,7 @@ from swarmfold.candidates import CandidateSpec
 class RegressionAdapter:
     task_type: str = "regression"
     default_metric: str = "rmse"
-    supported_metrics: frozenset[str] = frozenset({"rmse", "mae", "r2"})
+    supported_metrics: frozenset[str] = frozenset({"rmse", "mae", "mape", "r2"})
     recommended_validation_strategy: str = "kfold"
     supported_model_families: frozenset[str] = frozenset(
         {

@@ -746,6 +746,8 @@ def _normalize_metric(value: str | None, task_type: str = "binary_classification
         "root_mean_squared_error": "rmse",
         "mae": "mae",
         "mean_absolute_error": "mae",
+        "mape": "mape",
+        "mean_absolute_percentage_error": "mape",
         "r2": "r2",
         "r_squared": "r2",
     }

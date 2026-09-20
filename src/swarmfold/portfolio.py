@@ -511,7 +511,7 @@ def _build_ensemble(
         if not has_full_experiment_registry:
             methods = (
                 ["equal_average", "pair_blend"]
-                if metric_name in {"roc_auc", "log_loss", "rmse", "mae", "r2"}
+                if metric_name in {"roc_auc", "log_loss", "rmse", "mae", "mape", "r2"}
                 else ["majority_vote"]
             )
         elif metric_name in {"roc_auc", "log_loss"}:
@@ -523,7 +523,7 @@ def _build_ensemble(
                 "caruana",
                 "stacking",
             ]
-        elif metric_name in {"rmse", "mae", "r2"}:
+        elif metric_name in {"rmse", "mae", "mape", "r2"}:
             methods = [
                 "equal_average",
                 "pair_blend",
@@ -799,6 +799,9 @@ def _score_blend(metric_name: str, targets: list[str], predictions: list[float])
         return float(mean_squared_error(numeric_targets, predictions) ** 0.5)
     if metric_name == "mae":
         return float(mean_absolute_error(numeric_targets, predictions))
+    if metric_name == "mape":
+        from sklearn.metrics import mean_absolute_percentage_error
+        return float(mean_absolute_percentage_error(numeric_targets, predictions))
     if metric_name == "r2":
         return float(r2_score(numeric_targets, predictions))
     raise ValueError(f"Metric '{metric_name}' does not support numeric blending")

@@ -342,6 +342,11 @@ def assess_robustness_uncertainty(state: ExperimentState) -> ExperimentState:
             estimates.append(
                 float(np.sqrt(np.mean((sub_actual.astype(float) - sub_pred.astype(float)) ** 2)))
             )
+        elif metric_name == "mape":
+            from sklearn.metrics import mean_absolute_percentage_error
+            estimates.append(
+                float(mean_absolute_percentage_error(sub_actual.astype(float), sub_pred.astype(float)))
+            )
         elif metric_name == "mae":
             estimates.append(
                 float(np.mean(np.abs(sub_actual.astype(float) - sub_pred.astype(float))))

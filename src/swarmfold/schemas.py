@@ -38,6 +38,7 @@ MetricName: TypeAlias = Literal[
     "f1_macro",
     "rmse",
     "mae",
+    "mape",
     "r2",
     "multilabel_f1",
 ]
@@ -48,6 +49,7 @@ MetricVersion: TypeAlias = Literal[
     "f1-macro-v1",
     "rmse-v1",
     "mae-v1",
+    "mape-v1",
     "r2-v1",
     "multilabel-f1-v1",
 ]
@@ -57,6 +59,11 @@ LaneId: TypeAlias = Literal[
     "ai-c",
     "ai-d",
     "ai-e",
+    "ai-0",
+    "ai-g",
+    "ai-h",
+    "ai-i",
+    "ai-j",
     "human-1",
     "human-2",
     "human-3",
@@ -273,7 +280,7 @@ class CandidateManifest(BaseModel):
     evidence_schema_version: Literal["evidence-v1"] = "evidence-v1"
     packet_type: Literal["candidate"]
     iteration_id: str
-    lane_id: str = Field(pattern=r"^(ai-[a-e]|human-[123])$")
+    lane_id: str = Field(pattern=r"^(ai-[a-z0-9]|human-[123])$")
     source_kind: Literal["ai", "human"] = "ai"
     experiment_id: str
     run_id: str
@@ -303,7 +310,7 @@ class FailureManifest(BaseModel):
     evidence_schema_version: Literal["evidence-v1"] = "evidence-v1"
     packet_type: Literal["failure"]
     iteration_id: str
-    lane_id: str = Field(pattern=r"^(ai-[a-e]|human-[123])$")
+    lane_id: str = Field(pattern=r"^(ai-[a-z0-9]|human-[123])$")
     source_kind: Literal["ai", "human"] = "ai"
     experiment_id: str
     run_id: str
@@ -353,7 +360,7 @@ class CompletionRecord(BaseModel):
     schema_version: Literal["0.1", "0.2"]
     packet_type: Literal["candidate", "failure", "waiver"]
     iteration_id: str
-    lane_id: str = Field(pattern=r"^(ai-[a-e]|human-[123])$")
+    lane_id: str = Field(pattern=r"^(ai-[a-z0-9]|human-[123])$")
     run_id: str
     manifest_name: Literal[
         "artifact-manifest.json",
@@ -380,7 +387,7 @@ class KnowledgeFinding(BaseModel):
 
     finding_id: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]+$")
     iteration_id: str
-    source_lane: str = Field(pattern=r"^(ai-[a-e]|human-[123])$")
+    source_lane: str = Field(pattern=r"^(ai-[a-z0-9]|human-[123])$")
     status: Literal[
         "HYPOTHESIS",
         "OBSERVED",

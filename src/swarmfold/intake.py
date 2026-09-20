@@ -214,8 +214,8 @@ def _profile_prompt(inventory: list[dict[str, object]]) -> str:
         "Markdown file that should govern the run; ask a question if it cannot be distinguished. "
         "Do not claim an experiment ran. "
         "The current built-in execution adapter supports binary, multiclass, and multilabel classification, "
-        "as well as regression and time-series forecasting, with mixed numeric and categorical CSV/Parquet features, "
-        "accuracy, ROC-AUC, or F1 metrics, one labeled training file, one inference file, and one submission template; "
+        "as well as regression and time-series forecasting, with mixed numeric, categorical, and unstructured text CSV/Parquet features, "
+        "accuracy, ROC-AUC, log-loss, F1, RMSE, MAE, MAPE, or R2 metrics, one labeled training file, one inference file, and one submission template; "
         "other scenarios may be understood but must list the missing adapter as a blocker.\n\n"
         f"Uploaded bundle inventory:\n{json.dumps(inventory, ensure_ascii=False, default=str)}"
     )
